@@ -49,7 +49,7 @@ All experiments follow the same structure so that what is learnt in one carries 
 | File prefix | Two letters per experiment (`cp_` cart-pole, `rp_` rotary pendulum, `bb_` ball and beam, `bp_` ball and plate) |
 | Parameters | `<prefix>_params.m` defines the tunable struct `P`; `<prefix>_design.m` derives inertias and gains |
 | Simulink blocks | `Reference → Controller → Actuator/Amplifier → Plant → Sensors`; the code of each MATLAB Function block lives in `<prefix>_*_block.m` |
-| Timing | Fixed-step ode4, h = 1 ms; controller sampled at Ts = 2 ms |
+| Timing | Fixed-step ode4, h = 1 ms; controller sampled at Ts = 2 ms (the ball-and-plate camera delivers frames at 50 Hz with one frame of latency) |
 | Angles | Pendulum angle 0 = upright, π = hanging; beam/plate tilt 0 = level, positive raises the + end; code in radians and metres |
 | Sensors | Only positions/angles are measured (quantized encoders, resistive track or camera, optional noise); velocities are estimated by the controller |
 | Validation | `validation/run_validation.m` (MATLAB) + `validation/compare_with_python.py` |

@@ -3709,7 +3709,7 @@ cd /tmp/claude-1000/-home-aguti-universidad-controlSystemsMatlabModels/861c5db6-
 <details><summary>Command</summary>
 
 ```bash
-cd /home/aguti/universidad/controlSystemsMatlabModels && grep -c "@gmail\|upm.es" admin/conversations/*.md; git status --short | grep -v "^?? src/ball\|^?? doc/src/ball" ; git status --short --untracked-files=all | grep -E "slprj|\.slx|\.slxc|autosave|results|pycache|\.aux|\.log|\.out|\.toc|\.lof" | head
+cd /home/aguti/universidad/controlSystemsMatlabModels && grep -c "upm.es" admin/conversations/*.md; git status --short | grep -v "^?? src/ball\|^?? doc/src/ball" ; git status --short --untracked-files=all | grep -E "slprj|\.slx|\.slxc|autosave|results|pycache|\.aux|\.log|\.out|\.toc|\.lof" | head
 ```
 
 </details>
@@ -3867,4 +3867,185 @@ add 'doc/ball_plate_manual.pdf'
 ```
 
 </details>
+
+## 🤖 Claude
+
+Now exporting this session to `admin/conversations`, then committing locally (I'll ask before pushing).
+
+**🔧 Bash** — Export current session transcript
+
+<details><summary>Command</summary>
+
+```bash
+S=/tmp/claude-1000/-home-aguti-universidad-controlSystemsMatlabModels/7253b8a4-26b4-46f7-9fac-012d177e7993/scratchpad; P=~/.claude/projects/-home-aguti-universidad-controlSystemsMatlabModels; cd /home/aguti/universidad/controlSystemsMatlabModels/admin/conversations && python3 $S/export.py $P/7253b8a4-26b4-46f7-9fac-012d177e7993.jsonl 2026-11-25_ball_beam_and_ball_plate_resume.md "Conversation: ball and beam and ball and plate — recovery, validation, manuals" "Claude Code session \`7253b8a4\`, 2026-11-25. Resumes the interrupted session (\`2026-11-25_ball_beam_and_ball_plate.md\`) after the computer broke down. Exported from the session transcript." && grep -c "@gmail" 2026-11-25_ball_beam_and_ball_plate_resume.md; sed -n 1,12p 2026-11-25_ball_beam_and_ball_plate_resume.md
+```
+
+</details>
+
+<details><summary>Output</summary>
+
+```
+2026-11-25_ball_beam_and_ball_plate_resume.md 1465 lines
+1
+# Conversation: ball and beam and ball and plate — recovery, validation, manuals
+
+Claude Code session `7253b8a4`, 2026-11-25. Resumes the interrupted session (`2026-11-25_ball_beam_and_ball_plate.md`) after the computer broke down. Exported from the session transcript.
+Internal reasoning and harness metadata are omitted; tool outputs are collapsed and truncated.
+
+## 🧑 User
+
+We were working on the controls systems implementations when the computer broke down :(. I need to restart the procedure. You can get wome informatin from the admin/conversation folders. Rememer we wokred on linear and rotational pendulum to be implemented in simulink and create a manual. Las order was to create a ball and beam and a ball and bar. Can you check the actaul estatus, validate and end the work?
+
+## 🤖 Claude
+
+I'll start by looking at the current state of the repo and the saved conversation notes.
+```
+
+</details>
+
+## 🤖 Claude
+
+The email address appears once in this export; let me find and remove it.
+
+**🔧 Bash** — Locate email in export
+
+<details><summary>Command</summary>
+
+```bash
+grep -n "@gmail" 2026-11-25_ball_beam_and_ball_plate_resume.md | cut -c1-200
+```
+
+</details>
+
+<details><summary>Output</summary>
+
+```
+3712:cd /home/aguti/universidad/controlSystemsMatlabModels && grep -c "upm.es" admin/conversations/*.md; git status --short | grep -v "^?? src/ball\|^?? doc/src/ball" ; git status --
+```
+
+</details>
+
+## 🤖 Claude
+
+It's just my own privacy-check command quoting part of the address. I'll scrub it:
+
+**🔧 Bash** — Remove email fragment from export
+
+<details><summary>Command</summary>
+
+```bash
+sed -i 's///g' 2026-11-25_ball_beam_and_ball_plate_resume.md && grep -c "<user>" *.md
+```
+
+</details>
+
+<details><summary>Output</summary>
+
+```
+2026-11-25_linear_pendulum_setup_and_validation.md:0
+2026-11-25_rotary_pendulum.md:0
+2026-11-25_ball_beam_and_ball_plate.md:0
+2026-11-25_ball_beam_and_ball_plate_resume.md:0
+```
+
+</details>
+
+**🔧 Bash** — Commit the two new experiments
+
+<details><summary>Command</summary>
+
+```bash
+cd /home/aguti/universidad/controlSystemsMatlabModels && git add -A && git commit -q -F - <<'EOF'
+Add ball and beam and ball and plate Simulink experiments
+
+- Ball and beam (experiment 3): script-generated Simulink model with full
+  nonlinear ball/beam dynamics (rolling ball, weight torque on the beam,
+  centrifugal/Coriolis terms, end stops) driven by a geared DC motor;
+  4 control modes (open, beam servo, cascade PID with weight
+  feedforward, LQR with integral action). BallBeam class, live GUI with
+  3D animation, examples and Python cross-validation (<=0.31 mm RMS).
+- Ball and plate (experiment 4): 4-DOF gimbal model with two motors and
+  an overhead camera (50 fps, one frame of latency, pixel quantization);
+  multirate per-axis cascade and LQR, point/circle/square/eight
+  references. BallPlate class, live GUI with clickable camera view,
+  examples and Python cross-validation (<=0.27 mm / 0.07 deg RMS).
+- Fix: camera latency of 2 or more frames failed to compile (Delay block
+  initial condition must be 2x1xcam_delay).
+- Adaptive telemetry throttle in all experiment classes so a heavy GUI
+  cannot slow the simulation below real time.
+- Spanish theory/practice manuals for both experiments (37 and 32
+  pages), figures generated from the Simulink models.
+- Root README updated; exported development conversations.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+EOF
+git log --oneline -3; git status -sb | head -3
+```
+
+</details>
+
+<details><summary>Output</summary>
+
+```
+8cf347c Add ball and beam and ball and plate Simulink experiments
+95c2c94 Add rotary pendulum (Furuta) Simulink experiment and experiments README
+162f62a Add linear pendulum (cart-pole) Simulink experiment
+## main...origin/main [ahead 1]
+```
+
+</details>
+
+## 🤖 Claude
+
+The ball & beam and ball & plate experiments are finished and committed locally as `8cf347c`; I haven't pushed. Both now match the pendulum experiments: code, Simulink model, GUI, README, a Spanish manual and validation against the Python replica.
+
+**Validation:** I rebuilt both Simulink models from scratch. Both walkthrough scripts (`examples.m`) run start to finish, including the ball & plate one that was running when the computer broke down. The models match the Python replicas closely: within 0.31 mm in ball position for the ball & beam, and within 0.27 mm and 0.07° in plate tilt for the ball & plate.
+
+**Bug fixed:** the ball & plate model failed to compile if the camera latency was set to 2 or more frames. The fix is in `src/ball_plate/bp_build_model.m`. Latencies of 0 to 3 frames now work, and the default of 1 frame behaves exactly as before.
+
+**What was missing after the crash and is now done:**
+- **READMEs** in `src/ball_beam` and `src/ball_plate`, with the expected results taken from the simulations.
+- **Manuals:** `doc/ball_beam_manual.pdf` (37 pages) and `doc/ball_plate_manual.pdf` (32 pages). They compile without warnings and every figure comes from the Simulink models; I checked the figures visually. Some findings they discuss:
+  - On the ball & beam, the ball's weight tips the beam towards it, which makes the system unstable even with the beam free (the textbook version ignores this).
+  - Without the weight compensation, the ball stops 1.1 cm past the target, exactly as the theory predicts.
+  - On the ball & beam the cascade PID barely changes when the ball is heavier, while the LQR becomes twice as slow with a ball four times heavier.
+  - On the ball & plate the camera's delay is the main limit. The cascade barely notices the frame rate, while the LQR settles in 4.8 s at 25 fps and 1.5 s at 100 fps, and making the LQR more aggressive makes it worse.
+- **Root `README.md`:** the two new experiments are in the table, and the shared conventions now include them.
+- **Conversation exports:** the crashed session and this one are saved in `admin/conversations/`.
+
+The commit also includes the change you already had uncommitted in the linear and rotary pendulum classes and GUIs. It limits how much time the live plots can take so they can't slow the simulation. I also added a `.gitignore` rule so the PDFs built inside `doc/src/*/` aren't committed twice.
+
+Should I push to `origin/main`, as we did with the rotary pendulum?
+
+## 🧑 User
+
+yes commit and push
+
+**🔧 Bash** — Push the commit to origin main
+
+<details><summary>Command</summary>
+
+```bash
+git status --short | head; git push origin main 2>&1 | tail -3; git status -sb | head -1
+```
+
+</details>
+
+<details><summary>Output</summary>
+
+```
+To github.com:aguti/controlSystemsMatlabModels.git
+   95c2c94..8cf347c  main -> main
+## main...origin/main
+```
+
+</details>
+
+## 🤖 Claude
+
+I pushed to GitHub: `main` on `origin` is now at commit `8cf347c`. There was nothing new to commit, since all the work was already in that commit, and the local branch now matches the remote. The commit adds the ball & beam and ball & plate experiments with their manuals, READMEs and exported conversations.
+
+## 🧑 User
+
+export the conversation to admin/conversations
 
