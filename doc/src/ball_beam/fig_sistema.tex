@@ -1,0 +1,39 @@
+% Esquema de la bola y viga (vista frontal)
+\begin{tikzpicture}[>=Latex,scale=1.0,font=\small]
+\def\al{12}            % ángulo dibujado [grados]
+\def\Lh{4.2}           % semilongitud de la viga
+\def\xb{2.2}           % posición de la bola a lo largo de la viga
+% suelo y pedestal
+\fill[gray!15] (-5.2,-2.6) rectangle (5.2,-2.4);
+\draw[gray!60] (-5.2,-2.4) -- (5.2,-2.4);
+\fill[gray!45] (-0.35,-2.4) rectangle (0.35,-0.3);
+% motor (detrás del pivote)
+\fill[c1!25,draw=c1!60!black] (0,0) circle (0.55);
+\node[font=\scriptsize,c1!60!black] at (0,-0.95) {motor + reductora};
+% eje horizontal de referencia
+\draw[gray,dashed] (-\Lh-0.3,0) -- (\Lh+0.6,0);
+% viga girada
+\begin{scope}[rotate=\al]
+  \fill[c2!20,draw=c2!70!black,thick] (-\Lh,-0.12) rectangle (\Lh,0.12);
+  \fill[c2!60!black] (-\Lh-0.12,-0.12) rectangle (-\Lh,0.45);
+  \fill[c2!60!black] (\Lh,-0.12) rectangle (\Lh+0.12,0.45);
+  % bola
+  \shade[ball color=gray!55] (\xb,0.47) circle (0.35);
+  \draw[gray!50!black] (\xb,0.47) circle (0.35);
+  % coordenada x
+  \draw[|->,c4,thick] (0,-0.55) -- node[below,sloped]{$x$} (\xb,-0.55);
+  \draw[c4,densely dotted] (\xb,-0.6) -- (\xb,0.12);
+  % fuerza de la gravedad proyectada
+  \draw[->,c5!60!black,thick] (\xb,0.47) -- ++(-1.1,0) node[above,font=\scriptsize]{$m g\sin\alpha$};
+\end{scope}
+\fill (0,0) circle (0.07);
+% ángulo
+\draw[->,thick] (2.9,0) arc[start angle=0,end angle=\al,radius=2.9] node[midway,right]{$\alpha$};
+% peso
+\draw[->,c5!60!black,thick] ({\xb*cos(\al)-0.47*sin(\al)},{\xb*sin(\al)+0.47*cos(\al)}) -- ++(0,-1.0) node[right,font=\scriptsize]{$mg$};
+% tensión
+\node[draw,fill=yellow!20,font=\scriptsize,align=center] (amp) at (-3.6,-1.5) {amplificador\\$\pm\SI{10}{V}$};
+\draw[->,thick] (amp.east) -- node[above,font=\scriptsize]{$V$} (-0.6,-0.3);
+% sensores
+\node[font=\scriptsize,align=left,anchor=west] at (2.3,-1.7) {$x$: pista resistiva\\$\alpha$: encoder};
+\end{tikzpicture}

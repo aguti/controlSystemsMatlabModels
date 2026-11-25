@@ -1,0 +1,54 @@
+\chapter{Análisis lineal}
+\label{cap:analisis}
+
+\section{Linealización y desacoplamiento}
+
+Igual que en la bola y viga, cualquier posición de la bola con el plato horizontal es un equilibrio si los motores compensan el peso: $V_{a,\text{eq}}=mgx_0/k_v$ y $V_{b,\text{eq}}=mgy_0/k_v$. Linealizando alrededor del centro, $(x,y)=(0,0)$ y $\alpha=\beta=0$, \emph{todos} los términos de acoplamiento entre ejes de~\eqref{eq:elx}--\eqref{eq:elb} desaparecen: $mxy$, $my\ald\bed$, $mx\ald\bed$, $m(\xd y+x\yd)$\ldots{} son productos de dos o más magnitudes pequeñas. El modelo lineal se separa en dos subsistemas independientes:
+\begin{equation}
+  \underbrace{(x,\ \xd,\ \alpha,\ \ald)\ \xleftarrow{\ V_a\ }}_{\text{eje }x}
+  \qquad\qquad
+  \underbrace{(y,\ \yd,\ \beta,\ \bed)\ \xleftarrow{\ V_b\ }}_{\text{eje }y}
+\end{equation}
+Cada uno es \emph{exactamente} el modelo lineal de la bola y viga~\cite{viga}, con la inercia de la viga sustituida por $J_\alpha$ o $J_\beta$. Es lo que calcula \code{bp\_linearize(P, J)}.
+
+\begin{ejemplo}{Matrices numéricas de los dos ejes}
+\[
+A_x=\begin{bmatrix}0&1&0&0\\ -0{,}362&-0{,}021&-7{,}008&-0{,}039\\ 0&0&0&1\\ -99{,}6&-0{,}001&-0{,}362&-10{,}61\end{bmatrix},\
+B_x=\begin{bmatrix}0\\ 0{,}071\\ 0\\ 19{,}46\end{bmatrix};
+\quad
+A_y(4,1)=-128{,}9,\ A_y(4,4)=-13{,}74,\ B_y(4)=25{,}19.
+\]
+El eje $y$ es más ligero: el mismo motor lo acelera más ($B_y(4)>B_x(4)$) y el peso de la bola lo inclina más ($|A_y(4,1)|>|A_x(4,1)|$). La dinámica de la bola, $A(2,3)=-\tfrac57g$, es idéntica en ambos.
+\end{ejemplo}
+
+\section{Polos en lazo abierto}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Eje & Polos [rad/s] & Comentario\\
+\midrule
+$x$ ($\alpha$, motor A) & $-11{,}06$, $+3{,}64$, $-1{,}60\pm j3{,}85$ & $J_\alpha=\SI{6.59e-3}{kg.m^2}$\\
+$y$ ($\beta$, motor B) & $-14{,}00$, $+3{,}70$, $-1{,}73\pm j3{,}80$ & $J_\beta=\SI{5.09e-3}{kg.m^2}$\\
+\bottomrule
+\end{tabular}
+\caption{Polos del modelo lineal de cada eje.}
+\label{tab:polos}
+\end{table}
+
+La interpretación es la de la bola y viga: el polo real inestable lo produce el lazo de realimentación positiva bola $\to$ par sobre el plato $\to$ inclinación $\to$ bola. Es prácticamente igual en los dos ejes porque viene dominado por $\left(mg\cdot\tfrac57g/J\right)^{1/4}$, poco sensible a la inercia.
+
+\section{Cuándo deja de valer el desacoplamiento}
+
+Fuera del centro aparecen tres efectos que el diseño lineal ignora:
+\begin{itemize}
+  \item \textbf{Inercia cruzada} $mxy$: con la bola en una esquina, mover un eje exige par en el otro. En $(\SI{10}{cm},\SI{10}{cm})$ vale un 10\,\% de las inercias propias.
+  \item \textbf{Términos centrífugos y de Coriolis} ($mx\ald^2$, $my\ald\bed$, $2mx\xd\ald$\ldots): crecen con el cuadrado de las velocidades angulares del plato. Importan en trayectorias rápidas.
+  \item \textbf{Par del peso no lineal}: $mgx\cos\alpha$ en lugar de $mgx$, y $\tfrac57g\sin\alpha$ en lugar de $\tfrac57g\alpha$. Con inclinaciones de pocos grados la diferencia es despreciable.
+\end{itemize}
+Para una trayectoria circular de radio $\rho$ y frecuencia $\omega$, la aceleración centrípeta de la bola es $\rho\omega^2$, y la inclinación necesaria para producirla, $\alpha\approx\tfrac75\rho\omega^2/g$. Con \SI{6}{cm} a \SI{0.2}{Hz} son $0{,}77^\circ$; con \SI{9}{cm} a \SI{0.4}{Hz}, $4{,}6^\circ$. Ninguno de los dos casos está cerca de saturar los motores, de modo que lo que limita el seguimiento de trayectorias rápidas no es la no linealidad sino el ancho de banda del lazo, que fija la cámara (capítulo~\ref{cap:camara}).
+
+\section{Controlabilidad y observabilidad}
+
+Cada eje es controlable con su motor y observable desde la posición de la bola, exactamente como en la bola y viga. Como los ejes están desacoplados, el sistema completo de 8 estados también lo es con las dos tensiones y las dos posiciones medidas por la cámara.

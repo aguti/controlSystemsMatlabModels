@@ -14,15 +14,17 @@ A growing series of control-systems laboratory experiments, simulated in MATLAB/
 |---|---|---|---|---|---|
 | 1 | Linear pendulum (cart-pole) | [`src/linear_pendulum`](src/linear_pendulum/README.md) | [PDF](doc/linear_pendulum_manual.pdf) | Force on the cart → cart position `x`, pendulum angle `θ` | open, LQR, swing-up, PID, crane |
 | 2 | Rotary pendulum (Furuta) | [`src/rotary_pendulum`](src/rotary_pendulum/README.md) | [PDF](doc/rotary_pendulum_manual.pdf) | Motor voltage → arm angle `θ`, pendulum angle `α` | open, LQR, swing-up, PID, down (anti-sway) |
+| 3 | Ball and beam | [`src/ball_beam`](src/ball_beam/README.md) | [PDF](doc/ball_beam_manual.pdf) | Motor voltage → ball position `x`, beam angle `α` | open, beam servo, cascade PID, LQR + integral |
+| 4 | Ball and plate | [`src/ball_plate`](src/ball_plate/README.md) | [PDF](doc/ball_plate_manual.pdf) | Two motor voltages → ball position `(x, y)` (camera), plate tilts `α`, `β` | open, plate servo, cascade PID, LQR + integral (per axis) |
 
 ## Quick start
 
 Requires MATLAB + Simulink R2020b or later (tested on R2025b). The Control System Toolbox is optional.
 
 ```matlab
-cd src/rotary_pendulum      % or src/linear_pendulum
-rp_build_model              % cp_build_model for the linear pendulum; generates the .slx
-rp_gui                      % cp_gui for the linear pendulum
+cd src/rotary_pendulum      % or src/linear_pendulum, src/ball_beam, src/ball_plate
+rp_build_model              % cp_/bb_/bp_build_model for the others; generates the .slx
+rp_gui                      % cp_gui, bb_gui, bp_gui
 ```
 
 Each experiment's README describes its model, code interface, GUI, validation and expected results. `examples.m` in each folder is a section-by-section walkthrough.
@@ -44,12 +46,12 @@ All experiments follow the same structure so that what is learnt in one carries 
 
 | Item | Convention |
 |---|---|
-| File prefix | Two letters per experiment (`cp_` cart-pole, `rp_` rotary pendulum) |
+| File prefix | Two letters per experiment (`cp_` cart-pole, `rp_` rotary pendulum, `bb_` ball and beam, `bp_` ball and plate) |
 | Parameters | `<prefix>_params.m` defines the tunable struct `P`; `<prefix>_design.m` derives inertias and gains |
 | Simulink blocks | `Reference → Controller → Actuator/Amplifier → Plant → Sensors`; the code of each MATLAB Function block lives in `<prefix>_*_block.m` |
 | Timing | Fixed-step ode4, h = 1 ms; controller sampled at Ts = 2 ms |
-| Angles | Pendulum angle 0 = upright, π = hanging; code in radians |
-| Sensors | Only positions/angles are measured (quantized encoders, optional noise); velocities are estimated by the controller |
+| Angles | Pendulum angle 0 = upright, π = hanging; beam/plate tilt 0 = level, positive raises the + end; code in radians and metres |
+| Sensors | Only positions/angles are measured (quantized encoders, resistive track or camera, optional noise); velocities are estimated by the controller |
 | Validation | `validation/run_validation.m` (MATLAB) + `validation/compare_with_python.py` |
 
 ## Adding a new experiment

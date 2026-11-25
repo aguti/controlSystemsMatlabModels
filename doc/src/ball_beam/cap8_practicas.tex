@@ -1,0 +1,144 @@
+\chapter{Prácticas guiadas}
+\label{cap:practicas}
+
+Las prácticas están ordenadas de menor a mayor dificultad y siguen el mismo esquema que las de los péndulos: objetivos, procedimiento con el código necesario, cuestiones y entregables. Al empezar cada sesión conviene ejecutar:
+\begin{lstlisting}
+clear; close all; bb = BallBeam(); bb.clearSignals();
+\end{lstlisting}
+Los valores que se citan como referencia corresponden a los parámetros por defecto. Recuerda que la interfaz de código trabaja en metros y radianes.
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:explora}
+\begin{practica}{Exploración y validación del modelo}
+\objetivos
+\begin{itemize}
+  \item Familiarizarse con la interfaz y la animación 3D.
+  \item Comprobar el factor $\tfrac57$ de la rodadura y el polo inestable del modelo lineal.
+\end{itemize}
+\procedimiento
+\begin{enumerate}
+  \item Inclinar la viga con el servo del modo \code{beam} y dejar rodar la bola:
+\begin{lstlisting}
+bb.setMode('beam'); bb.setInitialState([0 0 0 0]);
+for a = [-1 -2 -4]
+    bb.setBeamAngle(deg2rad(a)); res = bb.run(3);
+    plot(res.t, res.x_cm); hold on
+end
+\end{lstlisting}
+  Ajustar $x(t)=\tfrac12at^2$ al primer tramo y comparar $a$ con $\tfrac57g\sin\alpha$.
+  \item Repetir con una bola hueca: en \code{bb\_derived.m} cambiar $J_b$ a $\tfrac23mr_b^2$ y volver a crear el objeto. ¿Qué factor se obtiene ahora?
+  \item Con el modo \code{open}, la bola en $x_0=\SI{2}{cm}$ y $V=0$, observar cómo cae la viga hacia el lado de la bola. Ajustar una exponencial a los primeros instantes y compararla con el polo $+3{,}62$ (tabla del capítulo~\ref{cap:analisis}).
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item ¿Por qué el factor $\tfrac57$ no depende ni de la masa ni del radio de la bola?
+  \item ¿Por qué el tiempo hasta el tope es algo mayor que la predicción con la viga fija? (Pista: mirar $\alpha(t)$.)
+  \item Explicar con~\eqref{eq:caract} de dónde sale el polo inestable si la ecuación de la bola sola es un doble integrador.
+\end{enumerate}
+\entregables Gráficas de los ensayos y tabla comparativa entre teoría y simulación.
+\end{practica}
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:interno}
+\begin{practica}{Diseño del lazo interno}
+\objetivos Ajustar el servo de posición de la viga y entender por qué debe ser rápido y rígido.
+\procedimiento
+\begin{enumerate}
+  \item Retirar la bola (\code{bb.setParam('m', 1e-5)}) y aplicar escalones de $5^\circ$ en modo \code{beam} (figura~\ref{fig:interno}).
+  \item Calcular $K_{pa}$ y $K_{da}$ para $\omega_n\in\{15,\ 27,\ 50\}$~rad/s con $\zeta=0{,}7$ a partir de $Js^2+(b_{\text{eq}}+k_vK_{da})s+k_vK_{pa}$ y comprobarlos (\code{bb.setParams(struct('Kp\_a', ..., 'Kd\_a', ...))}).
+  \item Volver a poner la bola en $x=\SI{15}{cm}$ con la viga horizontal y medir cuánto se inclina la viga en los primeros \SI{0.2}{s} con cada ajuste.
+  \item Medir el error en régimen permanente del escalón y relacionarlo con la fricción de Coulomb $T_c$.
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item ¿Qué limita la rapidez del lazo interno: la tensión, el ruido del encoder o el periodo de muestreo?
+  \item ¿Qué rigidez angular (N\,m/rad) tiene la viga con el PD por defecto? ¿Cuánto la inclina la bola en el extremo?
+\end{enumerate}
+\entregables Tabla de ajustes con $\omega_n$, $\zeta$, sobreoscilación, $t_{95}$ y error permanente.
+\end{practica}
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:cascada}
+\begin{practica}{Control en cascada y prealimentación}
+\objetivos Diseñar el lazo externo sobre la planta simplificada $-\tfrac57g/s^2$ y verificar la importancia de compensar el peso.
+\procedimiento
+\begin{enumerate}
+  \item Elegir $K_{px}$ y $K_{dx}$ para un lazo externo con $\omega_n\in\{2,\ 3,\ 5\}$~rad/s y $\zeta=0{,}9$. Probar cada diseño con un escalón de \SI{10}{cm} en modo \code{cascade}.
+  \item Encontrar a partir de qué $\omega_n$ del lazo externo la cascada empieza a oscilar. Relacionarlo con la $\omega_n$ del lazo interno.
+  \item Con $K_{ix}=0$, desactivar la prealimentación (\code{ff\_on = 0}) y medir el error permanente para $r\in\{5,10,15\}$~cm. Compararlo con la predicción de la sección~\ref{sec:ff}.
+  \item Activar de nuevo el integrador sin prealimentación. ¿Cuánto tarda en corregir el error? Probar $e_{\text{int}}=\SI{20}{cm}$ (integrador siempre activo) y observar la sobreoscilación por \emph{windup}.
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item ¿Qué regla práctica de separación entre los lazos interno y externo deducís?
+  \item ¿Por qué la prealimentación usa la $x$ medida en la cascada y la referencia $r$ en el LQR?
+\end{enumerate}
+\entregables Diseños, respuestas al escalón y tabla de errores permanentes.
+\end{practica}
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:lqr}
+\begin{practica}{Diseño de un LQR con acción integral}
+\objetivos Entender el compromiso entre rapidez, inclinación de la viga y esfuerzo, y comparar con la cascada.
+\procedimiento
+\begin{enumerate}
+  \item Desde $x_0=\SI{10}{cm}$, repetir el ensayo con $Q_x\in\{200,1000,5000\}$ y $R\in\{0{,}1,\ 1,\ 10\}$ (figura~\ref{fig:pesos}).
+  \item Aplicar la regla de Bryson con $x_{\max}=\SI{2}{cm}$, $\alpha_{\max}=10^\circ$ y $V_{\max}=\SI{5}{V}$. Comparar con el diseño por defecto.
+  \item Barrer $Q_\xi\in\{20,200,2000\}$ y medir a la vez la sobreoscilación del escalón y el tiempo de recuperación tras un golpecito de \SI{0.2}{N}$\times$\SI{50}{ms}.
+  \item Comparar el mejor LQR con la mejor cascada de la práctica anterior en las tres pruebas: escalón, golpecito y senoide de \SI{0.25}{Hz}.
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item ¿Por qué el diseño con $R=0{,}1$ es más lento que el de $R=1$?
+  \item ¿Qué peso controla la inclinación máxima de la viga? ¿Se podría añadir una restricción explícita?
+\end{enumerate}
+\entregables Tabla de diseños con sus métricas y una recomendación justificada.
+\end{practica}
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:segui}
+\begin{practica}{Seguimiento de trayectorias}
+\objetivos Medir el ancho de banda del lazo cerrado y mejorarlo con una prealimentación de la referencia.
+\procedimiento
+\begin{enumerate}
+  \item Referencias senoidales de $\pm\SI{10}{cm}$ a 0,1; 0,25; 0,5 y \SI{1}{Hz} con ambos controladores. Medir ganancia y desfase (tabla~\ref{tab:sine}) y dibujar el Bode del lazo cerrado.
+  \item Para que la bola siga $r(t)$ hace falta una inclinación $\alpha_{\text{ff}}=-\tfrac75\ddot r/g$. Añadirla a $\alpha_r$ en la cascada como modo 4 (sección~\ref{sec:nuevo_modo}), con $\ddot r$ calculada analíticamente para la senoide.
+  \item Repetir las senoides con el modo nuevo.
+  \item Probar una referencia triangular y una cuadrada. ¿Qué ocurre con la prealimentación en las esquinas?
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item ¿Hasta qué frecuencia se puede seguir una senoide de \SI{10}{cm} sin llegar a los topes de la viga? (Calcular la inclinación necesaria.)
+  \item ¿Por qué el limitador de pendiente de la referencia mejora los escalones pero empeora las senoides rápidas?
+\end{enumerate}
+\entregables Bode del lazo cerrado con y sin prealimentación de la referencia.
+\end{practica}
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:robustez}
+\begin{practica}{Robustez}
+\objetivos Evaluar la sensibilidad de ambos controladores a errores de modelo.
+\procedimiento
+\begin{enumerate}
+  \item Reproducir la tabla~\ref{tab:masa}. Repetirla con la prealimentación calculada con la masa \emph{nominal}. Como la planta y el controlador leen la misma \code{P.m}, hay que añadir un parámetro \code{m\_ff} y usarlo en \code{bb\_controller\_block.m}.
+  \item Multiplicar la fricción de Coulomb de la viga por 5 (\code{setParamRaw('Tc', 0.05)}) y observar los ciclos límite de la bola con y sin integrador.
+  \item Cambiar la longitud de la viga (\code{setParam('L', 0.6)}) sin recalcular las ganancias del LQR.
+\end{enumerate}
+\preguntas ¿Qué controlador es más robusto frente a cada error de modelo? Relacionar las respuestas con la estructura de cada uno.
+\entregables Tabla de robustez y una discusión de una página.
+\end{practica}
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:obs}
+\begin{practica}{Instrumentación y observador de estado}
+\objetivos Cuantificar el efecto del ruido y sustituir las derivadas filtradas por un observador.
+\procedimiento
+\begin{enumerate}
+  \item Con el ruido activado, barrer $\tau_x\in\{5,10,20,50\}$~ms y representar el rizado de $V$ frente al tiempo de asentamiento.
+  \item Diseñar un filtro de Kalman estacionario discreto para el modelo lineal, con las varianzas de medida $\sigma^2+q^2/12$ de cada sensor. Implementarlo como modo 5 en \code{bb\_controller\_block.m} con \code{persistent shat}.
+  \item Comparar el modo 5 con el modo 3 en rizado de tensión, error de posición y respuesta al golpecito.
+  \item Construir un observador que use \emph{solo} el encoder de la viga (el sistema es observable desde $\alpha$, capítulo~\ref{cap:analisis}) y comprobar lo mal condicionado que está.
+\end{enumerate}
+\preguntas ¿Merece la pena una pista resistiva de más resolución, o es mejor filtrar? ¿Qué pasaría con una cámara a \SI{30}{fps} en lugar de la pista? (Véase el manual de la bola y plato~\cite{placa}.)
+\entregables Código del modo nuevo y comparación cuantitativa.
+\end{practica}

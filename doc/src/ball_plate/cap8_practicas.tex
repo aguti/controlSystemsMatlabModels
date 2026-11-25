@@ -1,0 +1,83 @@
+\chapter{Prácticas guiadas}
+\label{cap:practicas}
+
+Las prácticas siguen el esquema de los experimentos anteriores. Se supone hecha al menos la práctica del lazo interno de la bola y viga~\cite{viga}. Al empezar cada sesión:
+\begin{lstlisting}
+clear; close all; bp = BallPlate(); bp.clearSignals();
+\end{lstlisting}
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:explora}
+\begin{practica}{Exploración y desacoplamiento}
+\objetivos Familiarizarse con la interfaz y comprobar hasta dónde vale el modelo desacoplado.
+\procedimiento
+\begin{enumerate}
+  \item En la GUI, mover el objetivo con clics en la vista de la cámara con el LQR y con la cascada. Dar golpecitos con las flechas.
+  \item En modo \code{plate}, inclinar el plato con distintas combinaciones $(\alpha,\beta)$ y comprobar que la bola sale en la dirección de máxima pendiente:
+\begin{lstlisting}
+bp.setMode('plate'); bp.setPlateAngle(deg2rad(-1), deg2rad(0.5));
+bp.setInitialState(zeros(8,1)); res = bp.run(3);
+plot(res.x_cm, res.y_cm); axis equal
+\end{lstlisting}
+  \item Con el LQR, mover la bola de $(0,0)$ a $(8,0)$~cm y comprobar que $y$ y $\beta$ no se mueven. Repetir de $(0,8)$ a $(8,8)$~cm y medir la perturbación que aparece en el eje $y$.
+\end{enumerate}
+\preguntas ¿Qué términos de~\eqref{eq:elx}--\eqref{eq:elb} explican la perturbación del último ensayo? Estimar su orden de magnitud.
+\entregables Gráficas y estimación de los términos de acoplamiento.
+\end{practica}
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:cascada}
+\begin{practica}{Cascada multifrecuencia}
+\objetivos Ajustar los lazos de la cascada teniendo en cuenta que el externo solo recibe datos cada \SI{20}{ms}.
+\procedimiento
+\begin{enumerate}
+  \item Partiendo de los lazos internos de la bola y viga, ajustar el lazo externo para $\omega_n\in\{2,\ 3,\ 4,\ 6\}$~rad/s con $\zeta=0{,}9$.
+  \item Para cada diseño, medir el movimiento punto a punto a 25, 50 y \SI{100}{fps} (\code{bp.setParam('Tcam', ...)}).
+  \item Cambiar el filtro de la velocidad de la bola, $\tau_c\in\{0{,}01;\ 0{,}03;\ 0{,}1\}$~s.
+\end{enumerate}
+\preguntas ¿Qué relación encontráis entre $\omega_n$ del lazo externo, la frecuencia de imagen y la sobreoscilación? ¿Por qué la velocidad de la bola no se estima con diferencias a \SI{500}{Hz}?
+\entregables Mapa de prestaciones ($\omega_n$, fps) y una recomendación.
+\end{practica}
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:retraso}
+\begin{practica}{LQR y retraso de la cámara}
+\objetivos Cuantificar cómo limita el retraso al LQR y diseñar uno que lo tenga en cuenta.
+\procedimiento
+\begin{enumerate}
+  \item Reproducir la tabla~\ref{tab:fps} y el barrido de \code{cam\_delay} entre 0 y 3 fotogramas.
+  \item Barrer $Q_x$ entre 100 y 5000 con 1 y 2 fotogramas de latencia. Encontrar el mejor $Q_x$ en cada caso.
+  \item Diseñar un LQR discreto a $T_{\text{cam}}$ sobre el modelo de un eje discretizado, ampliado con el estado retrasado de la medida (predictor). Implementarlo como modo 4.
+  \item Compararlo con el LQR por defecto con 1, 2 y 3 fotogramas de latencia.
+\end{enumerate}
+\preguntas ¿Cuánto ancho de banda se recupera al modelar el retraso? ¿Qué pasa si la latencia real difiere de la del diseño?
+\entregables Código del modo nuevo y tabla comparativa.
+\end{practica}
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:tray}
+\begin{practica}{Seguimiento de trayectorias}
+\objetivos Medir el seguimiento de trayectorias planas y mejorarlo con prealimentación.
+\procedimiento
+\begin{enumerate}
+  \item Circunferencias de 6 y \SI{9}{cm} a 0,1; 0,2 y \SI{0.4}{Hz} con ambos controladores: radio medio, ovalización y retraso.
+  \item Añadir a cada eje la prealimentación $\alpha_{\text{ff}}=-\tfrac75\ddot r_x/g$, $\beta_{\text{ff}}=-\tfrac75\ddot r_y/g$ (en el LQR, convertida a tensión con la ganancia sobre el ángulo).
+  \item Diseñar una trayectoria propia con \code{setRefSignal} (una espiral, las letras de vuestro nombre\ldots) y medir el error eficaz.
+\end{enumerate}
+\preguntas ¿Qué frecuencia máxima admite una circunferencia de \SI{9}{cm} sin llegar a los topes de inclinación? ¿Y sin saturar los motores?
+\entregables Gráficas $x$--$y$ con y sin prealimentación y tabla de errores.
+\end{practica}
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:obs}
+\begin{practica}{Estimación con la cámara}
+\objetivos Mejorar la estimación de la velocidad de la bola entre fotogramas.
+\procedimiento
+\begin{enumerate}
+  \item Con el ruido activado, comparar la velocidad estimada con la real (\code{res.xd}) para $\tau_c\in\{0{,}01;\ 0{,}03;\ 0{,}1\}$~s.
+  \item Implementar un observador por eje que se ejecute a $T_s$: predice con el modelo (usando los ángulos medidos a \SI{500}{Hz}) y corrige cuando llega un fotograma, teniendo en cuenta su latencia.
+  \item Usar el estado estimado en el LQR y comparar con el modo 3.
+\end{enumerate}
+\preguntas ¿Por qué ayuda tanto conocer la inclinación del plato para predecir la bola entre fotogramas?
+\entregables Código del observador y comparación cuantitativa.
+\end{practica}

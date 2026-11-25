@@ -1,0 +1,92 @@
+\chapter{Tabla de parámetros}
+\label{cap:parametros}
+
+\begin{table}[H]
+\centering\footnotesize
+\begin{tabularx}{\linewidth}{@{}p{4.1cm}p{3.6cm}p{2.1cm}X@{}}
+\toprule
+Campo de \code{P} & Valor & Unidad & Descripción\\
+\midrule
+\multicolumn{4}{@{}l}{\textit{Bola y viga}}\\
+\code{m}, \code{rb}, \code{bx} & 0,067 / 0,0127 / $2\cdot10^{-3}$ & kg, m, N\,s/m & bola maciza de acero\\
+\code{L}, \code{mbeam} & 0,42 / 0,35 & m, kg & viga\\
+\code{Db}, \code{Tc}, \code{w\_eps} & $10^{-3}$ / 0,01 / 0,05 & N\,m\,s/rad, N\,m, rad/s & fricción de la viga\\
+\code{Jb}, \code{mb}, \code{J}, \code{x\_max}, \code{kv}, \code{beq} & derivados (\code{bb\_derived}) & -- & capítulo~\ref{cap:modelo}\\
+\multicolumn{4}{@{}l}{\textit{Motor y topes}}\\
+\code{Rm}, \code{kt}, \code{km}, \code{Jm} & 2,6 / 0,00768 / 0,00768 / $3{,}9\cdot10^{-7}$ & $\Omega$, N\,m/A, V\,s/rad, kg\,m$^2$ & motor de continua\\
+\code{Kg}, \code{eta\_g}, \code{eta\_m} & 70 / 0,9 / 0,69 & -- & reductora y rendimientos\\
+\code{Vmax} & 10 & V & saturación del amplificador\\
+\code{al\_max}, \code{k\_al}, \code{c\_al} & 0,35 / 200 / 2 & rad, N\,m/rad, N\,m\,s/rad & topes de la viga\\
+\code{k\_x}, \code{c\_x} & 2000 / 5 & N/m, N\,s/m & topes de la bola\\
+\multicolumn{4}{@{}l}{\textit{Sensores y tiempos}}\\
+\code{res\_al}, \code{res\_x} & $2\pi/4096$ / $L/4096$ & rad, m & resolución de los sensores\\
+\code{noise\_on}, \code{noise\_x}, \code{noise\_al} & 0 / $10^{-3}$ / $10^{-3}$ & --, m, rad & ruido de medida\\
+\code{Ts}, \code{h} & 0,002 / 0,001 & s & muestreo y paso del solver\\
+\code{tau\_v}, \code{tau\_x} & 0,005 / 0,02 & s & filtros derivativos (viga, bola)\\
+\code{x0} & $[0{,}1;\ 0;\ 0;\ 0]$ & -- & estado inicial\\
+\multicolumn{4}{@{}l}{\textit{Referencia y controladores}}\\
+\code{x\_ref\_max}, \code{ref\_rate} & 0,15 / 0,3 & m, m/s & saturación y pendiente de la referencia\\
+\code{Kp\_a}, \code{Kd\_a} & 40 / 1,5 & V/rad, V\,s/rad & PD de la viga (lazo interno)\\
+\code{Kp\_x}, \code{Kd\_x}, \code{Ki\_x} & 1,3 / 0,8 / 0,1 & rad/m, rad\,s/m, rad/(m\,s) & PID de la bola (lazo externo)\\
+\code{I\_max}, \code{e\_int}, \code{al\_ref\_max} & 0,5 / 0,02 / 0,25 & m\,s, m, rad & antisaturación y límite de $\alpha_r$\\
+\code{ff\_on} & 1 & -- & prealimentación del peso de la bola\\
+\code{Q}, \code{R} & diag(1000; 50; 10; 0,5; 200) / 1 & -- & LQR con integral\\
+\code{K} & calculada (\code{bb\_design}) & -- & ganancia LQR\\
+\bottomrule
+\end{tabularx}
+\caption{Parámetros por defecto (\code{bb\_params.m}).}
+\end{table}
+
+\chapter{Validación del modelo Simulink}
+\label{cap:validacion}
+
+Las gráficas de este manual se obtuvieron simulando \code{ballbeam\_sim.slx} (MATLAB R2025b, ode4, $h=\SI{1}{ms}$) con \code{data/generate\_data.m}. Para detectar errores de implementación, los mismos escenarios se ejecutaron también en una réplica independiente en Python (\code{python\_reference\_sim.py}) y se compararon muestra a muestra. La réplica no modela el limitador de pendiente de la referencia, así que en esta comparación se desactivó.
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}lrrX@{}}
+\toprule
+Escenario & RMS $\Delta x$ [mm] & RMS $\Delta\alpha$ [$^\circ$] & Métrica (Python / Simulink)\\
+\midrule
+LQR desde $x_0=\SI{10}{cm}$ & 0,060 & 0,018 & asentamiento a \SI{5}{mm}: 0,68 / 0,68 s; $V_{\max}$ 4,3 / 4,3 V\\
+LQR, escalón \SI{10}{cm} & 0,056 & 0,016 & asentamiento 0,64 / 0,64 s; sobreoscilación 2,5 / 2,5\,\%\\
+LQR, golpecito & 0,110 & 0,026 & $\max|x|$ 1,89 / 1,93 cm\\
+Cascada desde $x_0=\SI{10}{cm}$ & 0,043 & 0,013 & asentamiento 1,52 / 1,52 s; $V_{\max}$ 5,7 / 5,7 V\\
+Cascada, escalón \SI{10}{cm} & 0,039 & 0,012 & asentamiento 1,50 / 1,50 s; final 10,07 / 10,07 cm\\
+Cascada, golpecito & 0,108 & 0,024 & $\max|x|$ 1,66 / 1,69 cm\\
+Cascada sin prealimentación & 0,041 & 0,012 & final 11,07 / 11,07 cm\\
+Viga a $-2^\circ$, bola libre & 0,314 & 0,007 & llega al tope en 1,249 / 1,250 s\\
+\bottomrule
+\end{tabularx}
+\caption{Comparación entre la réplica en Python y el modelo Simulink.}
+\label{tab:validacion}
+\end{table}
+
+Las discrepancias son del orden de la resolución del sensor de posición (\SI{0.10}{mm}); la mayor aparece en el ensayo de la bola libre, en el que la bola se acelera sin control y cualquier diferencia de un paso de muestreo crece con el tiempo. Además se comprobó que una sesión en vivo (\code{start}/\code{stop}, también lanzada desde la GUI) reproduce la misma trayectoria que \code{run}.
+
+Para repetir la validación:
+\begin{lstlisting}
+cd src/ball_beam/validation
+run_validation                         % MATLAB: escribe results/*.csv
+!python3 compare_with_python.py        % compara con la réplica en Python
+\end{lstlisting}
+
+\chapter{Resolución de problemas}
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}p{4.8cm}X@{}}
+\toprule
+Síntoma & Solución\\
+\midrule
+\emph{Undefined variable P} al pulsar \emph{Run} en Simulink & Ejecutar \code{BallBeam()} o \code{P = bb\_design(bb\_params())}. La \code{InitFcn} lo hace sola si el modelo se ha generado con el script.\\
+Los cambios en \code{bb\_*\_block.m} no tienen efecto & Volver a ejecutar \code{bb\_build\_model}: el código se copia dentro del modelo al generarlo.\\
+\code{setParamRaw('m', \ldots)} no cambia las inercias & Las magnitudes derivadas solo se recalculan con \code{setParam}. Para mantener las ganancias nominales, imponerlas después con \code{setParamRaw('K', K)}.\\
+La bola se queda a \SI{1}{cm} de la referencia & La prealimentación del peso está desactivada (\code{ff\_on = 0}) y el integrador apagado ($K_{ix}=0$) o fuera de su banda.\\
+La bola oscila alrededor de la referencia con amplitud pequeña & Fricción de Coulomb de la viga más cuantización: subir $K_{pa}$ o activar el integrador.\\
+La viga golpea los topes & Pesos del LQR demasiado agresivos o referencia sin limitador: reducir $Q_x$ o \code{x\_ref\_max}.\\
+La animación va a saltos & La clase reduce la frecuencia de la telemetría si la GUI no da abasto (\code{GuiLoad}). La simulación no se ve afectada: solo se pierden fotogramas.\\
+\bottomrule
+\end{tabularx}
+\caption{Problemas habituales.}
+\end{table}

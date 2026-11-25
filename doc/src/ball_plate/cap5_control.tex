@@ -1,0 +1,202 @@
+\chapter{Diseño de controladores}
+\label{cap:control}
+
+El controlador discreto (\code{bp\_controller\_block.m}) ofrece cuatro modos, seleccionables en vivo. Los dos controladores de la bola son los de la bola y viga~\cite{viga} aplicados a cada eje por separado, lo que justifica el desacoplamiento del capítulo~\ref{cap:analisis}:
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}cll@{}}
+\toprule
+Modo & Nombre & Ley de control\\
+\midrule
+0 & \code{open} & $[V_a,\ V_b]=$ tensiones manuales $+\ \vect u_{\text{ext}}$\\
+1 & \code{plate} & PD de cada ángulo a $(\alpha_{\text{manual}},\ \beta_{\text{manual}})$; la bola queda libre\\
+2 & \code{cascade} & por eje: PID de la bola (a la frecuencia de la cámara) $\to$ PD del ángulo (cada $T_s$)\\
+3 & \code{lqr} & por eje: $V=-K[e,\ \dot e,\ \text{ángulo},\ \text{vel. angular},\ \textstyle\int e]^\top+mg\,r/k_v$\\
+\bottomrule
+\end{tabular}
+\caption{Modos de control.}
+\end{table}
+
+\section{Bola libre: el modo \code{plate}}
+
+Con el plato inclinado a mano, $(\alpha,\beta)=(-1^\circ,\ 0{,}5^\circ)$, la bola parte del centro y llega al borde en \SI{1.49}{s} (con el plato fijo serían $\sqrt{2x_{\max}/(\tfrac57g\sin1^\circ)}=\SI{1.50}{s}$). Su trayectoria es una recta a $-25{,}9^\circ$ del eje $x$, prácticamente la dirección de máxima pendiente, $\arctan(0{,}5/1)=26{,}6^\circ$: con inclinaciones pequeñas, cada eje empuja la bola de forma independiente.
+
+\section{Control en cascada}
+
+\paragraph{Lazos internos.} El mismo PD de la bola y viga, $K_{pa}=\SI{40}{V/rad}$ y $K_{da}=\SI{1.5}{V.s/rad}$, en cada eje y a $T_s=\SI{2}{ms}$. Como $J_\beta<J_\alpha$, el lazo del eje $\beta$ es algo más rápido: polos en $-25{,}7\pm j18{,}6$ frente a $-19{,}9\pm j19{,}6$.
+
+\paragraph{Lazos externos.} Un PID por eje, que solo se actualiza cuando llega un fotograma:
+\begin{equation}
+  \alpha_r = \operatorname{sat}\!\left(K_{px}e_x + K_{dx}\hat{\xd} + K_{ix}\!\int e_x\right),\qquad
+  \beta_r = \operatorname{sat}\!\left(K_{px}e_y + K_{dx}\hat{\yd} + K_{ix}\!\int e_y\right),
+\end{equation}
+con $K_{px}=\SI{1.0}{rad/m}$, $K_{dx}=\SI{0.7}{rad.s/m}$, $K_{ix}=\SI{0.1}{rad/(m.s)}$ y saturación en $\pm0{,}2$~rad ($11{,}5^\circ$). Las ganancias son algo más suaves que en la bola y viga para no acercarse a la latencia de la cámara: con un lazo interno ideal, el externo tiene $\omega_n=\sqrt{\tfrac57gK_{px}}=\SI{2.6}{rad/s}$ y $\zeta=0{,}93$. La prealimentación del peso, $mg\,x/k_v$, y la integración condicional son las de la bola y viga.
+
+\section{LQR por eje}
+
+Se diseña un LQR con acción integral para cada eje, con el modelo lineal de ese eje, los mismos pesos $Q=\operatorname{diag}(500;\ 60;\ 10;\ 0{,}5;\ 100)$ y $R=1$:
+\[
+K_x=\begin{bmatrix}-33{,}5 & -14{,}0 & 17{,}6 & 1{,}12 & -10{,}0\end{bmatrix},\qquad
+K_y=\begin{bmatrix}-33{,}5 & -13{,}8 & 16{,}7 & 0{,}96 & -10{,}0\end{bmatrix},
+\]
+\[
+\lambda_x=\{-17{,}4,\ -5{,}31\pm j5{,}72,\ -2{,}93,\ -0{,}44\},\qquad
+\lambda_y=\{-22{,}3,\ -5{,}46\pm j5{,}60,\ -2{,}93,\ -0{,}44\}.
+\]
+Frente a la bola y viga ($Q_x=1000$) el peso de la posición es la mitad: un LQR más agresivo ignora el retraso de la cámara, que no está en su modelo, y lo paga en amortiguamiento (sección~\ref{sec:pesos}). La bola se lee de la cámara, y su posición y velocidad se actualizan solo con cada fotograma; los ángulos y sus velocidades, cada $T_s$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=1 by 3,vertical sep=0.35cm,xticklabels at=edge bottom},
+  manual,height=3.4cm,xmin=0,xmax=4]
+\nextgroupplot[ylabel={$x,\ y$ [cm]},legend pos=north east,legend columns=2]
+\addplot[c1] table[x=t,y=x]{data/lqr_ic.dat};
+\addplot[c2] table[x=t,y=y]{data/lqr_ic.dat};
+\legend{$x$,$y$}
+\nextgroupplot[ylabel={incl. [$^\circ$]},legend pos=north east,legend columns=2]
+\addplot[c1] table[x=t,y=al]{data/lqr_ic.dat};
+\addplot[c2] table[x=t,y=be]{data/lqr_ic.dat};
+\legend{$\alpha$,$\beta$}
+\nextgroupplot[ylabel={$V$ [V]},xlabel={$t$ [s]},legend pos=north east,legend columns=2]
+\addplot[c1] table[x=t,y=Va]{data/lqr_ic.dat};
+\addplot[c2] table[x=t,y=Vb]{data/lqr_ic.dat};
+\legend{$V_a$,$V_b$}
+\end{groupplot}
+\end{tikzpicture}
+\caption{LQR desde $(8,\ -5)$~cm. La bola queda a menos de \SI{5}{mm} del centro en \SI{1.95}{s}; inclinación máxima $6{,}4^\circ$, tensión máxima \SI{2.7}{V}.}
+\label{fig:lqric}
+\end{figure}
+
+\section{Movimiento punto a punto}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=2 by 1,horizontal sep=1.5cm},manual,height=5.4cm]
+\nextgroupplot[width=0.42\linewidth,axis equal image,xmin=-1,xmax=10,ymin=-7,ymax=1,xlabel={$x$ [cm]},ylabel={$y$ [cm]},legend pos=north east]
+\addplot[c1] table[x=x,y=y]{data/lqr_step.dat};
+\addplot[c2] table[x=x,y=y]{data/cascade_step.dat};
+\addplot[only marks,mark=+,mark size=4pt,c5,line width=1pt] coordinates {(8,-5)};
+\legend{LQR,cascada,objetivo}
+\nextgroupplot[width=0.55\linewidth,xmin=0,xmax=5,xlabel={$t$ [s]},ylabel={$x$ [cm]},legend pos=south east]
+\addplot[c1] table[x=t,y=x]{data/lqr_step.dat};
+\addplot[c2] table[x=t,y=x]{data/cascade_step.dat};
+\addplot[black,dashed] table[x=t,y=rx]{data/lqr_step.dat};
+\legend{LQR,cascada,$r_x$}
+\end{groupplot}
+\end{tikzpicture}
+\caption{Movimiento del centro a $(8,\ -5)$~cm en $t=\SI{1}{s}$, con el limitador de pendiente por defecto. Izquierda: trayectoria vista por la cámara; derecha: coordenada $x$.}
+\label{fig:step}
+\end{figure}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Controlador & Asentamiento a \SI{5}{mm} & Sobreoscilación en $x$ & Desvío máx. de la recta & $V_{\max}$\\
+\midrule
+LQR & \SI{2.06}{s} & 6,7\,\% & \SI{6.1}{mm} & \SI{1.0}{V}\\
+Cascada & \SI{1.75}{s} & 1,2\,\% & \SI{3.0}{mm} & \SI{1.0}{V}\\
+\bottomrule
+\end{tabular}
+\caption{Movimiento punto a punto.}
+\end{table}
+
+Al revés que en la bola y viga, aquí la cascada gana. La razón es la cámara: el LQR, con sus ganancias más altas sobre la posición y velocidad de la bola, es más sensible a su retraso.
+
+\section{Frecuencia y latencia de la cámara}
+\label{sec:fps}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Cámara & LQR & Cascada\\
+\midrule
+\SI{25}{fps} & \SI{4.84}{s}, 18,9\,\% & \SI{1.73}{s}, 1,5\,\%\\
+\SI{50}{fps} (defecto) & \SI{2.06}{s}, 6,7\,\% & \SI{1.75}{s}, 1,2\,\%\\
+\SI{100}{fps} & \SI{1.49}{s}, 4,6\,\% & \SI{1.77}{s}, 1,2\,\%\\
+\bottomrule
+\end{tabular}
+\caption{Movimiento punto a punto con distintas frecuencias de imagen (siempre con un fotograma de latencia): asentamiento a \SI{5}{mm} y sobreoscilación.}
+\label{tab:fps}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[manual,height=4.4cm,xmin=0.5,xmax=5,xlabel={$t$ [s]},ylabel={$x$ [cm]},legend pos=south east]
+\addplot[c2] table[x=t,y=x]{data/cam_25.dat};
+\addplot[c1] table[x=t,y=x]{data/cam_50.dat};
+\addplot[c5] table[x=t,y=x]{data/cam_100.dat};
+\addplot[black,dashed] table[x=t,y=rx]{data/cam_50.dat};
+\legend{\SI{25}{fps},\SI{50}{fps},\SI{100}{fps},$r_x$}
+\end{axis}
+\end{tikzpicture}
+\caption{La cascada con tres frecuencias de imagen: casi indistinguibles.}
+\label{fig:fps}
+\end{figure}
+
+La cascada es casi indiferente a la cámara porque su lazo externo es lento (\SI{2.6}{rad/s}) comparado con el retraso. El LQR, con más ancho de banda en la posición de la bola, pasa de bueno a mediocre al bajar a \SI{25}{fps}, y mejora claramente a \SI{100}{fps}. La latencia pesa todavía más que la frecuencia (capítulo~\ref{cap:camara}): con el LQR, cada fotograma adicional de latencia a \SI{50}{fps} dobla aproximadamente el tiempo de asentamiento.
+
+\section{Elección de los pesos}
+\label{sec:pesos}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Diseño & $K_x$ (sin $K_\xi$) & Asentamiento & Sobreoscilación\\
+\midrule
+$Q_x=100$ & $[-24{,}2\ \ -11{,}9\ \ 16{,}1\ \ 1{,}06]$ & \SI{2.43}{s} & 6,7\,\%\\
+$Q_x=500$ (defecto) & $[-33{,}5\ \ -14{,}0\ \ 17{,}6\ \ 1{,}11]$ & \SI{2.06}{s} & 6,7\,\%\\
+$Q_x=2500$ & $[-59{,}1\ \ -19{,}5\ \ 21{,}1\ \ 1{,}24]$ & \SI{2.58}{s} & 16,7\,\%\\
+\bottomrule
+\end{tabular}
+\caption{Barrido de $Q_x$ (movimiento punto a punto).}
+\end{table}
+
+A partir de cierto punto, un LQR más agresivo es \emph{peor}: el diseño supone medida instantánea, y con la cámara real la sobreoscilación se dispara. Es la consecuencia práctica de la tabla~\ref{tab:retraso}. Un diseño que tuviera en cuenta el retraso (por ejemplo, un LQR discreto a \SI{50}{Hz} con el estado ampliado con la medida retrasada) es el objeto de la práctica~\ref{pr:retraso}.
+
+\section{Seguimiento de trayectorias}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=2 by 1,horizontal sep=1.4cm},manual,width=0.48\linewidth,height=6cm]
+\nextgroupplot[axis equal image,xmin=-8,xmax=8,ymin=-8,ymax=8,xlabel={$x$ [cm]},ylabel={$y$ [cm]},title={Circunferencia, \SI{6}{cm} a \SI{0.2}{Hz}},legend pos=north east,legend style={font=\scriptsize}]
+\addplot[black,dashed] table[x=rx,y=ry]{data/lqr_circle.dat};
+\addplot[c1] table[x=x,y=y]{data/lqr_circle.dat};
+\addplot[c2] table[x=x,y=y]{data/cascade_circle.dat};
+\legend{$r$,LQR,cascada}
+\nextgroupplot[axis equal image,xmin=-9,xmax=9,ymin=-8,ymax=8,xlabel={$x$ [cm]},title={Ocho, \SI{7}{cm} a \SI{0.15}{Hz} (LQR)}]
+\addplot[black,dashed] table[x=rx,y=ry]{data/lqr_eight.dat};
+\addplot[c1] table[x=x,y=y]{data/lqr_eight.dat};
+\end{groupplot}
+\end{tikzpicture}
+\caption{Seguimiento de trayectorias. Una vez en régimen, la circunferencia del LQR tiene un radio de \SI{5.75}{cm} (entre 5,41 y 6,08) y la de la cascada \SI{5.14}{cm}, más pequeña pero más redonda (entre 5,07 y 5,21).}
+\label{fig:tray}
+\end{figure}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Trayectoria & Controlador & Resultado en régimen\\
+\midrule
+Circunferencia \SI{6}{cm}, \SI{0.2}{Hz} & LQR & ganancia 0,96, retraso $31^\circ$\\
+Circunferencia \SI{6}{cm}, \SI{0.2}{Hz} & cascada & ganancia 0,86, retraso $45^\circ$\\
+Circunferencia \SI{9}{cm}, \SI{0.4}{Hz} & LQR & radio \SI{7.78}{cm}; inclinación máx. $5{,}3^\circ$\\
+Ocho \SI{7}{cm}, \SI{0.15}{Hz} & LQR & error eficaz \SI{2.7}{cm}\\
+\bottomrule
+\end{tabular}
+\caption{Seguimiento de trayectorias.}
+\end{table}
+
+Una circunferencia es una referencia senoidal en cada eje, desfasada $90^\circ$. Si los dos ejes tuvieran exactamente la misma respuesta en frecuencia, la bola describiría una circunferencia perfecta, solo que más pequeña y retrasada. Con el LQR el radio oscila entre 5,41 y \SI{6.08}{cm}: los dos ejes no son idénticos ($J_\alpha\neq J_\beta$, ganancias distintas) y el integrador condicional entra y sale de su banda. La mayor parte del error de seguimiento es retraso de fase, que se puede reducir con una prealimentación de la aceleración de la referencia, igual que en la bola y viga (práctica~\ref{pr:tray}).
+
+\section{Rechazo de perturbaciones}
+
+Un golpecito diagonal de $(0{,}2;\ 0{,}2)$~N durante \SI{50}{ms} aleja la bola \SI{3.36}{cm} del centro con el LQR y \SI{3.11}{cm} con la cascada. La cascada vuelve a menos de \SI{2}{mm} en \SI{1.55}{s} y el LQR en \SI{3.0}{s}: igual que en la bola y viga, el polo lento del integrador del LQR ($-0{,}44$) alarga la cola de la respuesta.

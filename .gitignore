@@ -19,3 +19,6 @@ __pycache__/
 *.fdb_latexmk
 *.fls
 src/**/validation/results/
+
+# Compiled manuals are copied to doc/<experiment>_manual.pdf
+doc/src/**/manual.pdf

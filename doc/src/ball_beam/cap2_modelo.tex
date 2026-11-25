@@ -1,0 +1,139 @@
+\chapter{Modelado dinámico}
+\label{cap:modelo}
+
+\section{Cinemática}
+
+Tomamos como coordenadas generalizadas $\vect q=[x,\ \alpha]^\top$. La viga gira alrededor de su centro, y la bola, de masa $m$ y radio $r_b$, se desplaza a lo largo de ella. Despreciando la pequeña distancia entre el centro de la bola y el eje de giro, la posición del centro de la bola es
+\begin{equation}
+  \vect p = x\,(\cos\alpha,\ \sin\alpha), \qquad |\dot{\vect p}|^2 = \xd^2 + x^2\ald^2 .
+\end{equation}
+El segundo término es la velocidad de arrastre: aunque la bola no se mueva respecto a la viga, si la viga gira la bola describe un arco de radio $|x|$.
+
+\paragraph{Rodadura sin deslizamiento.} La bola rueda sobre la viga, de modo que su velocidad angular \emph{relativa} a la viga es $\xd/r_b$. Su velocidad angular absoluta es la de la viga más la relativa:
+\begin{equation}
+  \omega_b = \ald - \frac{\xd}{r_b}.
+\end{equation}
+La bola es una esfera maciza con $J_b=\tfrac25 mr_b^2$ respecto a su centro.
+
+\section{Energías}
+
+Sea $J$ la inercia de la viga respecto al pivote, incluida la inercia del rotor del motor reflejada a través de la reductora. La energía cinética total es
+\begin{equation}
+  T = \tfrac12 J\ald^2 + \tfrac12 m\left(\xd^2 + x^2\ald^2\right) + \tfrac12 J_b\left(\ald - \frac{\xd}{r_b}\right)^2 .
+\end{equation}
+Agrupando términos con la \emph{masa efectiva de rodadura}
+\begin{equation}
+  m_b = m + \frac{J_b}{r_b^2} = \tfrac75 m,
+  \label{eq:mb}
+\end{equation}
+queda
+\begin{equation}
+  \boxed{T = \tfrac12 m_b\xd^2 - \frac{J_b}{r_b}\,\xd\ald + \tfrac12\left(J + J_b + m x^2\right)\ald^2}
+  \label{eq:T}
+\end{equation}
+La energía potencial, con origen en el pivote y $\alpha>0$ levantando el extremo $+x$, es $U = m g x\sin\alpha$. El peso propio de la viga no aporta par porque su centro de masas está en el pivote.
+
+\section{Ecuaciones de Euler--Lagrange}
+
+Las fuerzas generalizadas no conservativas son la fricción de rodadura de la bola $b_x\xd$, una perturbación $F_d$ sobre la bola a lo largo de la viga, el par del motor $\tau$ y la fricción de la reductora:
+\begin{equation}
+  Q_x = F_d - b_x\xd,\qquad
+  Q_\alpha = \tau - D_b\ald - T_c\operatorname{sgn}\ald .
+\end{equation}
+
+\paragraph{Coordenada $x$.}
+\begin{equation}
+  m_b\xdd - \frac{J_b}{r_b}\aldd - m x\ald^2 + m g\sin\alpha = Q_x .
+  \label{eq:el1}
+\end{equation}
+
+\paragraph{Coordenada $\alpha$.}
+\begin{equation}
+  -\frac{J_b}{r_b}\xdd + \left(J+J_b+mx^2\right)\aldd + 2m x\xd\ald + m g x\cos\alpha = Q_\alpha .
+  \label{eq:el2}
+\end{equation}
+
+Cada término tiene una interpretación directa:
+\begin{itemize}
+  \item $m g\sin\alpha$: la componente del peso a lo largo de la viga. Es la que mueve la bola.
+  \item $m x\ald^2$: fuerza centrífuga. Si la viga gira deprisa, la bola tiende a salir hacia los extremos.
+  \item $m g x\cos\alpha$: el par que el peso de la bola ejerce sobre la viga. Si la bola está en $x>0$, tiende a bajar el extremo $+x$ ($\aldd<0$).
+  \item $2m x\xd\ald$: término de Coriolis; al alejarse la bola del pivote aumenta la inercia de la viga, $mx^2$.
+  \item $J_b/r_b$: acoplamiento por el giro de la bola. Es pequeño ($J_b/r_b=\SI{3.4e-4}{kg.m}$) pero se mantiene.
+\end{itemize}
+
+\section{Forma matricial}
+
+\begin{equation}
+  \underbrace{\begin{bmatrix} m_b & -J_b/r_b\\ -J_b/r_b & J+J_b+mx^2\end{bmatrix}}_{\vect M(x)}
+  \begin{bmatrix}\xdd\\ \aldd\end{bmatrix}
+  =
+  \begin{bmatrix}
+    m x\ald^2 - m g\sin\alpha - b_x\xd + F_d + F_{\text{tope}}\\
+    \tau - D_b\ald - T_c\tanh(\ald/\omega_\epsilon) - 2m x\xd\ald - m g x\cos\alpha + T_{\text{tope}}
+  \end{bmatrix}.
+  \label{eq:nl}
+\end{equation}
+Esta es exactamente la ecuación que implementa \code{bb\_plant\_block.m}, que resuelve el sistema $2\times2$ en cada paso del integrador. La matriz de masas es definida positiva: $\det\vect M = m_b(J+mx^2) + mJ_b > 0$.
+
+\paragraph{Topes.} La bola choca con dos topes en $x=\pm x_{\max}$, con $x_{\max}=L/2-r_b=\SI{19.7}{cm}$, y la viga con dos topes en $\alpha=\pm\alpha_{\max}=\pm20^\circ$. Ambos se modelan como muelles-amortiguadores rígidos que solo empujan, nunca tiran ($F_{\text{tope}}$, $T_{\text{tope}}$).
+
+\section{Motor, reductora y amplificador}
+
+El motor de corriente continua mueve la viga a través de una reductora de relación $K_g=70$. Despreciando la inductancia del inducido, el par en el eje de salida es
+\begin{equation}
+  \tau = \eta_g\eta_m K_g\frac{k_t}{R_m}\left(V - K_gk_m\ald\right) = k_v\left(V - K_gk_m\ald\right),
+  \qquad k_v = \frac{\eta_g\eta_mK_gk_t}{R_m}=\SI{0.128}{N.m/V},
+  \label{eq:motor}
+\end{equation}
+con $\eta_g$ y $\eta_m$ los rendimientos de la reductora y del motor. La fuerza contraelectromotriz, multiplicada por $K_g$ dos veces, se convierte en un amortiguamiento viscoso considerable sobre la viga:
+\begin{equation}
+  b_{\text{eq}} = k_vK_gk_m + D_b = \SI{0.0690}{} + \SI{0.0010}{} = \SI{0.0700}{N.m.s/rad}.
+\end{equation}
+Del mismo modo, la inercia del rotor aparece multiplicada por $K_g^2$: $\eta_gK_g^2J_m=\SI{1.72e-3}{kg.m^2}$, un tercio de la inercia de la propia viga ($\SI{5.15e-3}{kg.m^2}$). El amplificador satura la tensión en $\pm\SI{10}{V}$, de modo que el par máximo es $k_vV_{\max}=\SI{1.28}{N.m}$. El par máximo que puede ejercer la bola sobre la viga es $mgx_{\max}=\SI{0.13}{N.m}$, es decir, mantener la viga horizontal con la bola en un extremo cuesta \SI{1.0}{V}.
+
+\begin{ejemplo}{Matriz de masas y magnitudes derivadas}
+Con los valores de la tabla~\ref{tab:param}: $J_b=\SI{4.32e-6}{kg.m^2}$, $m_b=\SI{0.0938}{kg}$ y $J=\SI{6.86e-3}{kg.m^2}$. Con la bola en el pivote:
+\[
+\vect M(0)=\begin{bmatrix}0{,}0938 & -3{,}40\cdot10^{-4}\\ -3{,}40\cdot10^{-4} & 6{,}87\cdot10^{-3}\end{bmatrix}.
+\]
+El acoplamiento fuera de la diagonal es dos órdenes de magnitud menor que los términos diagonales: el giro de la bola apenas afecta a la viga. Lo que sí importa es el factor $m/m_b=5/7$: una bola que rueda acelera un 29\,\% menos que una que deslizara sin fricción.
+\end{ejemplo}
+
+\section{Fricción}
+
+\begin{itemize}
+  \item \textbf{Viga}: viscosa $D_b\ald$ más Coulomb $T_c\tanh(\ald/\omega_\epsilon)$ en la reductora, con $T_c=\SI{0.01}{N.m}$. La tangente hiperbólica suaviza el signo para que el integrador de paso fijo no oscile alrededor de $\ald=0$.
+  \item \textbf{Bola}: fricción de rodadura viscosa, $b_x\xd$, muy pequeña.
+\end{itemize}
+La fricción de Coulomb de la reductora equivale a \SI{0.08}{V}: es pequeña frente a las tensiones de trabajo, pero produce pequeños errores de posicionado de la viga que el lazo de la bola debe corregir.
+
+\section{Parámetros por defecto}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}llll@{}}
+\toprule
+Parámetro & Símbolo & Valor & Campo en \code{P}\\
+\midrule
+Masa de la bola & $m$ & \SI{0.067}{kg} & \code{m}\\
+Radio de la bola & $r_b$ & \SI{12.7}{mm} & \code{rb}\\
+Fricción de rodadura & $b_x$ & \SI{2e-3}{N.s/m} & \code{bx}\\
+Longitud de la viga & $L$ & \SI{0.42}{m} & \code{L}\\
+Masa de la viga & $m_{\text{viga}}$ & \SI{0.35}{kg} & \code{mbeam}\\
+Fricción viscosa de la viga & $D_b$ & \SI{1e-3}{N.m.s/rad} & \code{Db}\\
+Fricción de Coulomb de la viga & $T_c$ & \SI{0.01}{N.m} & \code{Tc}\\
+Resistencia del motor & $R_m$ & \SI{2.6}{\ohm} & \code{Rm}\\
+Constantes del motor & $k_t$, $k_m$ & \SI{7.68e-3}{N.m/A}, \SI{7.68e-3}{V.s/rad} & \code{kt}, \code{km}\\
+Inercia del rotor & $J_m$ & \SI{3.9e-7}{kg.m^2} & \code{Jm}\\
+Reductora y rendimientos & $K_g$, $\eta_g$, $\eta_m$ & 70; 0,9; 0,69 & \code{Kg}, \code{eta\_g}, \code{eta\_m}\\
+Saturación del amplificador & $V_{\max}$ & \SI{10}{V} & \code{Vmax}\\
+\bottomrule
+\end{tabular}
+\caption{Parámetros físicos por defecto (\code{bb\_params.m}). Son valores típicos de una maqueta de laboratorio de sobremesa. La tabla completa está en el apéndice~\ref{cap:parametros}.}
+\label{tab:param}
+\end{table}
+
+\begin{aviso}
+$J_b$, $m_b$, $J$, $x_{\max}$, $k_v$ y $b_{\text{eq}}$ son \emph{derivados}: los recalcula \code{bb\_derived} (llamada desde \code{bb\_design}) a partir de las masas, longitudes y constantes del motor. Si se cambia \code{m} o \code{L} con \code{setParam}, todo se actualiza. Con \code{setParamRaw} no se recalcula nada (sección~\ref{sec:robustez}).
+\end{aviso}

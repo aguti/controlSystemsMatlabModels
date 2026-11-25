@@ -1,0 +1,46 @@
+Kx = [-33.54 -14.02 17.56 1.115 -10]
+Ky = [-33.45 -13.77 16.66 0.9577 -10]
+Ax = [0 1 0 0;-0.3615 -0.02133 -7.008 -0.03851;0 0 0 1;-99.62 -0.0011 -0.3615 -10.61]
+Bx = [0;0.07062;0;19.46]
+Ay = [0 1 0 0;-0.4678 -0.02133 -7.009 -0.04984;0 0 0 1;-128.9 -0.001424 -0.4678 -13.74]
+By = [0;0.09139;0;25.19]
+poles_OL_x = [-11.06 3.635 -1.603+3.845i -1.603-3.845i]
+poles_CL_x = [-17.35 -5.31+5.72i -5.31-5.72i -2.926 -0.4409]
+poles_OL_y = [-14 3.703 -1.731+3.799i -1.731-3.799i]
+poles_CL_y = [-22.34 -5.457+5.604i -5.457-5.604i -2.929 -0.4409]
+Jb = 4.323e-06  mb = 0.0938  Jplate = 0.003375  Jf = 0.0015  Jrot = 0.00172  Ja = 0.006595  Jbt = 0.005095
+kv = 0.1284  beq = 0.07003  x_max = 0.1373
+poles_inner_x = [-19.88+19.57i -19.88-19.57i 0.9141 -0.9812]
+poles_inner_y = [-25.74+18.56i -25.74-18.56i 0.9142 -0.9814]
+poles_cascade_PD_x = [-15.8+17.94i -15.8-17.94i -1.924 -4.328]
+delay 0.000 s: [-17.33 -5.118+5.745i -5.118-5.745i -3.778]
+delay 0.010 s: [-201.1 -200 -18.18 -4.688+5.967i -4.688-5.967i -3.682]
+delay 0.030 s: [-3.531 -3.904+6.219i -3.904-6.219i -20.08 -67.58 -66.67]
+delay 0.050 s: [-3.415 -3.229+6.29i -3.229-6.29i -23.03 -39.43 -40]
+plate_tilt: reaches rim at 1.490 s (theory 1.498 s), angle of path -25.9 deg
+lqr_ic: settle5mm 1.95, Vmax 2.68, max|tilt| 6.40 deg
+lqr_step: settle5mm 2.06 s after step, overshoot x 6.7 %, final (7.94, -4.99) cm, Vmax 0.99, max dev from line 6.12 mm
+cascade_step: settle5mm 1.75 s after step, overshoot x 1.2 %, final (8.06, -5.09) cm, Vmax 1.04, max dev from line 2.99 mm
+cam cascade 25 fps: settle 1.73 overshoot 1.5 %
+cam cascade 50 fps: settle 1.75 overshoot 1.2 %
+cam cascade 100 fps: settle 1.77 overshoot 1.2 %
+cam lqr 25 fps: settle 4.84 overshoot 18.9 %
+cam lqr 50 fps: settle 2.06 overshoot 6.7 %
+cam lqr 100 fps: settle 1.49 overshoot 4.6 %
+latency 0 frames: settle 1.47 overshoot 4.2 %
+latency 1 frames: settle 2.06 overshoot 6.7 %
+latency 2 frames: settle 4.27 overshoot 11.9 %
+latency 3 frames: settle 4.92 overshoot 22.8 %
+lqr circle 6cm 0.2Hz: radius 5.75 cm (5.41-6.08), gain 0.958 lag 31.1 deg
+cascade circle 6cm 0.2Hz: radius 5.14 cm (5.07-5.21), gain 0.856 lag 44.8 deg
+eight: rms err 2.69 cm
+fast circle 9cm 0.4Hz: radius 7.78 cm (7.65-7.94), Vmax 0.86, max tilt 5.34
+lqr tap: max dist 3.36 cm, settle2mm 3.00 s after tap
+cascade tap: max dist 3.11 cm, settle2mm 1.55 s after tap
+qsweep Qx=100: Kx [-24.2 -11.9 16.1 1.06 -10] settle 2.43 overshoot 6.7 % Vmax 0.75
+qsweep Qx=500: Kx [-33.5 -14 17.6 1.11 -10] settle 2.06 overshoot 6.7 % Vmax 0.99
+qsweep Qx=2500: Kx [-59.1 -19.5 21.1 1.24 -10] settle 2.58 overshoot 16.7 % Vmax 1.53
+noise: pos std 0.507 mm, tilt std 0.148 deg, V std 0.329
+quantization only: pos std 1.151 mm, V std 0.091
+frames at t = [0.4 1.6 2.6 4.6] (LQR, circle 8 cm at 0.25 Hz)
+gui run: t end 8.02, CmdRef [1 0 0 0.06 0.2]

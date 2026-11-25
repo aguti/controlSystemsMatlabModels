@@ -1,0 +1,276 @@
+\chapter{Diseño de controladores}
+\label{cap:control}
+
+El controlador discreto (\code{bb\_controller\_block.m}) ofrece cuatro modos, seleccionables en vivo:
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}cll@{}}
+\toprule
+Modo & Nombre & Ley de control\\
+\midrule
+0 & \code{open} & $V=u_{\text{manual}}+u_{\text{ext}}$ (lazo abierto, identificación)\\
+1 & \code{beam} & PD del ángulo de la viga a $\alpha_{\text{manual}}$; la bola queda libre\\
+2 & \code{cascade} & PID de la bola $\to\alpha_r\to$ PD de la viga, más prealimentación del peso\\
+3 & \code{lqr} & $V=-K[x-r,\ \xd,\ \alpha,\ \ald,\ \textstyle\int(x-r)]^\top+V_{\text{eq}}(r)$\\
+\bottomrule
+\end{tabular}
+\caption{Modos de control.}
+\end{table}
+
+Al cambiar de modo, o al deshabilitar el control, el integrador se pone a cero.
+
+\section{El lazo interno: servo del ángulo de la viga}
+\label{sec:interno}
+
+El modo \code{beam} y la cascada comparten un PD sobre el ángulo de la viga:
+\begin{equation}
+  V = K_{pa}\left(\alpha_r-\alpha\right) - K_{da}\ald,\qquad K_{pa}=\SI{40}{V/rad},\ K_{da}=\SI{1.5}{V.s/rad}.
+\end{equation}
+Con la bola fuera ($m\to0$) el lazo cerrado de la viga es de segundo orden: $Js^2+(b_{\text{eq}}+k_vK_{da})s+k_vK_{pa}=0$, con $\omega_n=\SI{27}{rad/s}$ y $\zeta=0{,}70$. La figura~\ref{fig:interno} lo comprueba sobre el modelo no lineal con una bola de masa despreciable: un escalón de $5^\circ$ llega al 95\,\% en \SI{0.11}{s} con un 0,8\,\% de sobreoscilación. El error final ($4{,}97^\circ$) es la fricción de Coulomb: un PD sin integral no la elimina.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[manual,height=4.2cm,xmin=0,xmax=0.6,xlabel={$t$ [s]},ylabel={$\alpha$ [$^\circ$]},legend pos=south east]
+\addplot[c1] table[x=t,y=al]{data/inner_step.dat};
+\addplot[black,dashed] table[x=t,y=alr]{data/inner_step.dat};
+\legend{$\alpha$,$\alpha_r$}
+\end{axis}
+\end{tikzpicture}
+\caption{Lazo interno: escalón de $5^\circ$ en el modo \code{beam} con la bola retirada (\code{setParam('m', 1e-5)}).}
+\label{fig:interno}
+\end{figure}
+
+Con la bola puesta, el mismo PD deja la bola libre: es la forma de \textbf{ver la inestabilidad en lazo abierto}. Con la viga a $-2^\circ$ la bola llega al tope en \SI{1.28}{s} (con la viga fija y rígida serían $\sqrt{2x_{\max}/(\tfrac57g\sin2^\circ)}=\SI{1.27}{s}$). Mientras rueda, su peso inclina la viga hasta $-3{,}0^\circ$: un PD de rigidez finita no puede mantener el ángulo frente a una carga que crece con $x$.
+
+\section{Control en cascada}
+\label{sec:cascada}
+
+\subsection{Lazo externo}
+Con el lazo interno mucho más rápido que la bola, la bola ve $\ddot x\approx-\tfrac57g\,\alpha_r$. El lazo externo es un PID que calcula la inclinación necesaria:
+\begin{equation}
+  \alpha_r = \operatorname{sat}_{\pm\alpha_{r,\max}}\!\left(K_{px}(x-r) + K_{dx}\xd + K_{ix}\!\int(x-r)\,\dd t\right),
+\end{equation}
+con $K_{px}=\SI{1.3}{rad/m}$, $K_{dx}=\SI{0.8}{rad.s/m}$, $K_{ix}=\SI{0.1}{rad/(m.s)}$ y $\alpha_{r,\max}=0{,}25$~rad ($14^\circ$). Los signos son los intuitivos: si la bola se pasa de la referencia ($x>r$), se levanta el extremo $+x$ ($\alpha_r>0$) para que vuelva. Con un lazo interno ideal y sin integral, el lazo externo es
+\begin{equation}
+  s^2 + \tfrac57gK_{dx}\,s + \tfrac57gK_{px} = s^2 + 5{,}6\,s + 9{,}1 = 0
+  \quad\Rightarrow\quad \omega_n=\SI{3.0}{rad/s},\ \zeta=0{,}93,
+\end{equation}
+diez veces más lento que el lazo interno: la separación de escalas que justifica la cascada. Sobre el modelo lineal completo, la cascada PD (sin integral) equivale a una realimentación de estado con polos $-14{,}3\pm j17{,}8$, $-5{,}13$ y $-2{,}30$.
+
+\subsection{Prealimentación del peso de la bola}
+\label{sec:ff}
+
+En equilibrio con la bola en $x$, el motor tiene que hacer un par $mgx$ (ecuación~\eqref{eq:veq}). Con un PD en el lazo interno, ese par solo aparece si hay un error $\alpha_r-\alpha=V_{\text{eq}}/K_{pa}$, y ese $\alpha_r$ solo aparece si la bola está desplazada de la referencia. Con $r=\SI{10}{cm}$:
+\[
+V_{\text{eq}}=\SI{0.57}{V}\ \Rightarrow\ \alpha_r=\frac{0{,}57}{40}=\SI{0.014}{rad}\ \Rightarrow\ x-r=\frac{0{,}014}{1{,}3}=\SI{1.1}{cm}.
+\]
+Es exactamente el error que se mide sin prealimentación ni integral (figura~\ref{fig:ff}). La solución es sumar a la tensión el término $m g x/k_v$ calculado con la $x$ medida (\code{ff\_on = 1}). Con ella la bola llega a $\SI{9.99}{cm}$ sin necesidad de integral; el integrador queda para corregir errores de modelo.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[manual,height=4.6cm,xmin=0,xmax=6,xlabel={$t$ [s]},ylabel={$x$ [cm]},legend pos=south east]
+\addplot[c1] table[x=t,y=x]{data/ff_1.dat};
+\addplot[c2] table[x=t,y=x]{data/ff_0.dat};
+\addplot[c4] table[x=t,y=x]{data/lqr_noff.dat};
+\addplot[black,dashed] table[x=t,y=r]{data/ff_1.dat};
+\legend{cascada con prealim.,cascada sin prealim.,LQR sin prealim.,$r$}
+\end{axis}
+\end{tikzpicture}
+\caption{Efecto de la prealimentación del peso (cascada sin integral, $K_{ix}=0$). Sin ella la bola se queda \SI{1.1}{cm} más allá de la referencia. El LQR sin prealimentación también se pasa \SI{1.2}{cm}, y su integrador tarda \SI{3.6}{s} en corregirlo.}
+\label{fig:ff}
+\end{figure}
+
+\subsection{Antisaturación del integrador}
+El integrador solo acumula cuando $|x-r|<e_{\text{int}}=\SI{2}{cm}$ (integración condicional) y además se recorta a $\pm I_{\max}$. Durante los movimientos grandes no integra, y no hay sobreoscilación por \emph{windup}.
+
+\section{LQR con acción integral}
+\label{sec:lqr}
+
+\subsection{Planteamiento}
+Se amplía el estado con la integral del error, $\xi=\int(x-r)\,\dd t$, y se minimiza
+\begin{equation}
+  J=\int_0^\infty\left(\tilde{\vect s}^\top Q\,\tilde{\vect s} + R\,V^2\right)\dd t,\qquad \tilde{\vect s}=[x-r,\ \xd,\ \alpha,\ \ald,\ \xi]^\top .
+\end{equation}
+\code{bb\_lqr} usa \code{lqr()} si existe la Control System Toolbox y, si no, el método del Hamiltoniano. A la ley $V=-K\tilde{\vect s}$ se le suma la tensión de equilibrio en la referencia, $V_{\text{eq}}(r)=mgr/k_v$, que es la prealimentación correspondiente.
+
+\begin{ejemplo}{Ganancias por defecto}
+Con $Q=\operatorname{diag}(1000;\ 50;\ 10;\ 0{,}5;\ 200)$ y $R=1$:
+\[
+K=\begin{bmatrix}-43{,}5 & -15{,}7 & 18{,}8 & 1{,}18 & -14{,}1\end{bmatrix},\qquad
+\lambda_{\text{LC}}=\{-16{,}6,\ -4{,}90\pm j5{,}78,\ -4{,}37,\ -0{,}44\}.
+\]
+Unidades: V/m, V/(m/s), V/rad, V/(rad/s) y V/(m\,s). Un error de \SI{1}{cm} pide \SI{0.43}{V}; una inclinación de $1^\circ$, \SI{-0.33}{V}. El cociente $K_x/K_\alpha=\SI{2.3}{rad/m}$ es la inclinación «pedida» por unidad de error, del orden del $K_{px}$ de la cascada.
+\end{ejemplo}
+
+El polo lento en $-0{,}44$ es el del integrador: con $Q_\xi=200$ el LQR lo deja lento a propósito para que no sobreoscile. Como el integrador solo actúa cerca de la referencia, ese polo no frena los movimientos grandes, pero sí se nota en la recuperación tras una perturbación (figura~\ref{fig:tap}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=1 by 3,vertical sep=0.35cm,xticklabels at=edge bottom},
+  manual,height=3.5cm,xmin=0,xmax=3]
+\nextgroupplot[ylabel={$x$ [cm]}]
+\addplot[c1] table[x=t,y=x]{data/lqr_ic.dat};
+\nextgroupplot[ylabel={$\alpha$ [$^\circ$]}]
+\addplot[c2] table[x=t,y=al]{data/lqr_ic.dat};
+\nextgroupplot[ylabel={$V$ [V]},xlabel={$t$ [s]}]
+\addplot[c4] table[x=t,y=V]{data/lqr_ic.dat};
+\end{groupplot}
+\end{tikzpicture}
+\caption{LQR desde $x_0=\SI{10}{cm}$. La viga se inclina hasta $9{,}6^\circ$ para lanzar la bola hacia el centro y después hasta $-5{,}9^\circ$ para frenarla. La bola queda a menos de \SI{5}{mm} del centro en \SI{0.68}{s}, con \SI{2.6}{mm} de sobreoscilación. Pico de tensión: \SI{4.4}{V}.}
+\label{fig:lqric}
+\end{figure}
+
+\section{Comparación: escalón de referencia}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=1 by 3,vertical sep=0.35cm,xticklabels at=edge bottom},
+  manual,height=3.5cm,xmin=0,xmax=4]
+\nextgroupplot[ylabel={$x$ [cm]},legend pos=south east]
+\addplot[c1] table[x=t,y=x]{data/lqr_step.dat};
+\addplot[c2] table[x=t,y=x]{data/cascade_step.dat};
+\addplot[black,dashed] table[x=t,y=r]{data/lqr_step.dat};
+\legend{LQR,cascada,$r$ (limitada)}
+\nextgroupplot[ylabel={$\alpha$ [$^\circ$]}]
+\addplot[c1] table[x=t,y=al]{data/lqr_step.dat};
+\addplot[c2] table[x=t,y=al]{data/cascade_step.dat};
+\nextgroupplot[ylabel={$V$ [V]},xlabel={$t$ [s]}]
+\addplot[c1] table[x=t,y=V]{data/lqr_step.dat};
+\addplot[c2] table[x=t,y=V]{data/cascade_step.dat};
+\end{groupplot}
+\end{tikzpicture}
+\caption{Escalón de \SI{10}{cm} en $t=\SI{1}{s}$, suavizado por el limitador de pendiente por defecto (\SI{0.3}{m/s}).}
+\label{fig:step}
+\end{figure}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Ensayo (escalón de \SI{10}{cm}) & Asentamiento a \SI{5}{mm} & Sobreoscilación & $V_{\max}$ & $\max|\alpha|$\\
+\midrule
+LQR, con limitador & \SI{0.85}{s} & 2,6\,\% & \SI{1.0}{V} & $5{,}9^\circ$\\
+LQR, sin limitador & \SI{0.64}{s} & 2,5\,\% & \SI{3.8}{V} & $9{,}1^\circ$\\
+Cascada, con limitador & \SI{1.67}{s} & 0,7\,\% & \SI{1.1}{V} & $3{,}5^\circ$\\
+Cascada, sin limitador & \SI{1.50}{s} & 0,8\,\% & \SI{5.2}{V} & $6{,}9^\circ$\\
+\bottomrule
+\end{tabular}
+\caption{Escalón de referencia: LQR frente a cascada.}
+\label{tab:step}
+\end{table}
+
+El LQR es el doble de rápido con las ganancias por defecto, porque usa a la vez toda la información del estado; la cascada sacrifica velocidad a cambio de un diseño que se entiende y se ajusta lazo a lazo. Ninguno de los dos está cerca de saturar: la limitación real es el ángulo de la viga, no la tensión.
+
+\subsection{Seguimiento de una senoide}
+Con una referencia de $\pm\SI{10}{cm}$:
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+& \multicolumn{2}{c}{LQR} & \multicolumn{2}{c}{Cascada}\\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Frecuencia & Ganancia & Retraso & Ganancia & Retraso\\
+\midrule
+\SI{0.1}{Hz} & 1,01 & $14^\circ$ & 0,94 & $23^\circ$\\
+\SI{0.25}{Hz} & 0,96 & $35^\circ$ & 0,83 & $51^\circ$\\
+\SI{0.5}{Hz} & 0,88 & $69^\circ$ & 0,58 & $88^\circ$\\
+\bottomrule
+\end{tabular}
+\caption{Seguimiento de una referencia senoidal de $\pm\SI{10}{cm}$.}
+\label{tab:sine}
+\end{table}
+
+El retraso del LQR crece casi linealmente con la frecuencia (unos \SI{0.38}{s} de retraso equivalente): se comporta como un filtro de fase casi lineal hasta \SI{0.5}{Hz}. La cascada tiene claramente menos ancho de banda: a \SI{0.5}{Hz} solo recorre el 58\,\% de la amplitud.
+
+\subsection{Rechazo de perturbaciones}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[manual,height=4.4cm,xmin=0.5,xmax=4,xlabel={$t$ [s]},ylabel={$x$ [cm]},legend pos=north east]
+\addplot[c1] table[x=t,y=x]{data/lqr_tap.dat};
+\addplot[c2] table[x=t,y=x]{data/cascade_tap.dat};
+\legend{LQR,cascada}
+\end{axis}
+\end{tikzpicture}
+\caption{Golpecito de \SI{0.2}{N} durante \SI{50}{ms} sobre la bola en $t=\SI{1}{s}$. El LQR la desplaza \SI{1.93}{cm} y tarda \SI{2.2}{s} en volver a menos de \SI{2}{mm}; la cascada, \SI{1.69}{cm} y \SI{1.2}{s}.}
+\label{fig:tap}
+\end{figure}
+
+Aquí la cascada gana. El golpe deja la bola dentro de la banda de integración, y el integrador del LQR, con su polo lento en $-0{,}44$, alarga la cola de la respuesta. Subir $Q_\xi$ acelera la recuperación a costa de más sobreoscilación en los escalones (práctica~\ref{pr:lqr}).
+
+\subsection{Elección de los pesos}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=2 by 1,horizontal sep=1.6cm},
+  manual,width=0.5\linewidth,height=5cm,xmin=0,xmax=3]
+\nextgroupplot[ylabel={$x$ [cm]},xlabel={$t$ [s]},legend pos=north east,title={Barrido de $Q_x$ ($R=1$)}]
+\addplot[c6] table[x=t,y=x]{data/qsweep_200.dat};
+\addplot[c1] table[x=t,y=x]{data/qsweep_1000.dat};
+\addplot[c4] table[x=t,y=x]{data/qsweep_5000.dat};
+\legend{$200$,$1000$,$5000$}
+\nextgroupplot[ylabel={$V$ [V]},xlabel={$t$ [s]},legend pos=north east,title={Barrido de $R$}]
+\addplot[c2] table[x=t,y=V]{data/rsweep_0.1.dat};
+\addplot[c1] table[x=t,y=V]{data/lqr_ic.dat};
+\addplot[c5] table[x=t,y=V]{data/rsweep_10.dat};
+\legend{$0{,}1$,$1$,$10$}
+\end{groupplot}
+\end{tikzpicture}
+\caption{Efecto de los pesos del LQR (ensayo desde $x_0=\SI{10}{cm}$).}
+\label{fig:pesos}
+\end{figure}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Diseño & $K$ (sin $K_\xi$) & Asentamiento & $V_{\max}$ [V] & $\max|\alpha|$ [$^\circ$]\\
+\midrule
+$Q_x=200$ & $[-29{,}2\ \ -12{,}5\ \ 16{,}5\ \ 1{,}10]$ & \SI{1.24}{s} & 2,9 & 6,7\\
+$Q_x=1000$ (defecto) & $[-43{,}5\ \ -15{,}7\ \ 18{,}8\ \ 1{,}18]$ & \SI{0.68}{s} & 4,4 & 9,6\\
+$Q_x=5000$ & $[-80{,}6\ \ -23{,}5\ \ 23{,}7\ \ 1{,}36]$ & \SI{0.52}{s} & 8,1 & 16,1\\
+$R=0{,}1$ & $[-124\ \ -44{,}5\ \ 45{,}3\ \ 2{,}79]$ & \SI{0.74}{s} & 10 (satura) & --\\
+$R=10$ & $[-18{,}7\ \ -6{,}36\ \ 9{,}59\ \ 0{,}65]$ & \SI{2.50}{s} & 1,9 & --\\
+\bottomrule
+\end{tabular}
+\caption{Ganancias y prestaciones para distintos pesos.}
+\end{table}
+
+Dos observaciones. Con $Q_x=5000$ la viga llega a $16^\circ$, cerca de los topes de $20^\circ$: en este sistema, \textbf{el recurso limitado es la inclinación}, porque la aceleración de la bola es $\tfrac57g\sin\alpha$. Y con $R=0{,}1$ el diseño satura el amplificador y acaba siendo \emph{más lento} que el de $R=1$: el LQR supone que la tensión pedida se aplica, y cuando no es así su optimalidad desaparece.
+
+\section{Robustez frente a la masa de la bola}
+\label{sec:robustez}
+
+Para probar la robustez hay que cambiar la planta \emph{sin} recalcular las ganancias:
+\begin{lstlisting}
+Knom = bb.P.K;
+bb.setParam('m', 0.134);      % bola el doble de pesada (recalcula todo...)
+bb.setParamRaw('K', Knom);    % ...pero se impone de nuevo la ganancia nominal
+\end{lstlisting}
+La prealimentación sí usa la masa nueva, como si se conociera el peso de la bola.
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Masa de la bola & LQR nominal & Cascada\\
+\midrule
+\SI{30}{g} & \SI{0.80}{s}, 2,6\,\% & \SI{1.68}{s}, 0,7\,\%\\
+\SI{67}{g} (nominal) & \SI{0.85}{s}, 2,6\,\% & \SI{1.67}{s}, 0,7\,\%\\
+\SI{134}{g} & \SI{1.23}{s}, 2,8\,\% & \SI{1.67}{s}, 0,7\,\%\\
+\SI{268}{g} & \SI{1.78}{s}, 4,0\,\% & \SI{1.66}{s}, 0,7\,\%\\
+\bottomrule
+\end{tabular}
+\caption{Escalón de \SI{10}{cm} (con limitador) para distintas masas de la bola: tiempo de asentamiento a \SI{5}{mm} y sobreoscilación.}
+\label{tab:masa}
+\end{table}
+
+La cascada es prácticamente insensible a la masa, por una razón física: la aceleración de la bola, $\tfrac57g\sin\alpha$, \emph{no depende de $m$}. La masa solo entra a través del par sobre la viga, que el lazo interno rígido y la prealimentación absorben. El LQR, en cambio, está diseñado con el acoplamiento $mg/J$ del modelo nominal; con cuatro veces la masa sigue siendo estable, pero el doble de lento.

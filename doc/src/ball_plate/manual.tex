@@ -1,0 +1,182 @@
+\documentclass[11pt,a4paper,openany]{report}
+
+% ------------------------------------------------------------------
+% Idioma, fuentes y página
+% ------------------------------------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\babelprovide[import,main]{spanish}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.4cm,headheight=14pt]{geometry}
+\usepackage{fancyhdr}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{siunitx}
+\sisetup{output-decimal-marker={,},group-separator={\,},per-mode=symbol}
+\usepackage{booktabs,array,tabularx,multirow}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage{caption,subcaption}
+\captionsetup{font=small,labelfont=bf}
+\usepackage{xcolor}
+
+% ------------------------------------------------------------------
+% Gráficos
+% ------------------------------------------------------------------
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,patterns,shapes.geometric,
+  decorations.pathmorphing,decorations.markings,fit,backgrounds,matrix,shadows}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{groupplots}
+\pgfplotsset{
+  manual/.style={width=\linewidth,height=4.6cm,grid=major,
+    grid style={gray!25},tick label style={font=\footnotesize},
+    label style={font=\small},legend style={font=\footnotesize,
+    fill=white,fill opacity=0.85,text opacity=1,draw=gray!50},
+    every axis plot/.append style={line width=0.9pt},
+    /pgf/number format/use comma},
+}
+\definecolor{c1}{RGB}{0,114,189}
+\definecolor{c2}{RGB}{217,83,25}
+\definecolor{c3}{RGB}{237,177,32}
+\definecolor{c4}{RGB}{126,47,142}
+\definecolor{c5}{RGB}{119,172,48}
+\definecolor{c6}{RGB}{77,190,238}
+\usetikzlibrary{3d,perspective}
+
+% ------------------------------------------------------------------
+% Código
+% ------------------------------------------------------------------
+\usepackage{listings}
+\lstdefinestyle{matlab}{
+  language=Matlab, basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{blue!70!black}\bfseries,
+  commentstyle=\color{green!45!black}\itshape,
+  stringstyle=\color{violet},
+  numbers=left, numberstyle=\tiny\color{gray}, numbersep=6pt,
+  frame=single, rulecolor=\color{gray!40}, backgroundcolor=\color{gray!5},
+  breaklines=true, columns=fullflexible, keepspaces=true,
+  showstringspaces=false, xleftmargin=1.6em, framexleftmargin=1.4em,
+  morekeywords={classdef,properties,methods,persistent,assert},
+  literate={á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1
+           {ñ}{{\~n}}1 {Á}{{\'A}}1 {É}{{\'E}}1 {Ó}{{\'O}}1 {ü}{{\"u}}1
+           {θ}{{$\theta$}}1 {α}{{$\alpha$}}1 {β}{{$\beta$}}1 {°}{{$^\circ$}}1 {±}{{$\pm$}}1 {→}{{$\to$}}1
+           {─}{{-}}1 {►}{{$\triangleright$}}1 {┐}{{+}}1 {┘}{{+}}1 {┼}{{+}}1
+           {│}{{|}}1 {◄}{{$\triangleleft$}}1 {┴}{{+}}1
+}
+\lstset{style=matlab}
+
+% ------------------------------------------------------------------
+% Cajas
+% ------------------------------------------------------------------
+\usepackage[most]{tcolorbox}
+\newtcolorbox{nota}[1][]{colback=c1!5,colframe=c1!70,fonttitle=\bfseries,
+  title={Nota},breakable,#1}
+\newtcolorbox{aviso}[1][]{colback=c2!6,colframe=c2!80,fonttitle=\bfseries,
+  title={Atención},breakable,#1}
+\newcounter{ejemplo}[chapter]
+\renewcommand{\theejemplo}{\thechapter.\arabic{ejemplo}}
+\newtcolorbox{ejemplo}[1]{colback=c5!6,colframe=c5!60!black,fonttitle=\bfseries,
+  breakable,before upper={\refstepcounter{ejemplo}},
+  title={Ejemplo \stepcounter{ejemplo}\theejemplo\addtocounter{ejemplo}{-1}: #1}}
+\newcounter{practica}
+\newtcolorbox{practica}[1]{enhanced,breakable,colback=white,colframe=c4!70!black,
+  fonttitle=\bfseries\large,title={Práctica \thepractica: #1},
+  before upper={},attach boxed title to top left={xshift=4mm,yshift=-2mm},
+  boxed title style={colback=c4!70!black}}
+\newcommand{\objetivos}{\par\smallskip\noindent\textbf{Objetivos}\par}
+\newcommand{\procedimiento}{\par\smallskip\noindent\textbf{Procedimiento}\par}
+\newcommand{\preguntas}{\par\smallskip\noindent\textbf{Cuestiones}\par}
+\newcommand{\entregables}{\par\smallskip\noindent\textbf{Entregables}\par}
+
+\usepackage{graphicx}
+\usepackage[hidelinks]{hyperref}
+\hypersetup{pdftitle={Manual de la bola y plato (ball and plate)},
+  pdfauthor={Serie de experimentos de sistemas de control}}
+
+% ------------------------------------------------------------------
+% Macros
+% ------------------------------------------------------------------
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\vect}[1]{\bm{#1}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\xd}{\dot{x}}
+\newcommand{\xdd}{\ddot{x}}
+\newcommand{\yd}{\dot{y}}
+\newcommand{\ydd}{\ddot{y}}
+\newcommand{\ald}{\dot{\alpha}}
+\newcommand{\aldd}{\ddot{\alpha}}
+\newcommand{\bed}{\dot{\beta}}
+\newcommand{\bedd}{\ddot{\beta}}
+\renewcommand{\figurename}{Figura}
+\renewcommand{\tablename}{Tabla}
+\renewcommand{\contentsname}{Índice}
+\renewcommand{\listfigurename}{Índice de figuras}
+\renewcommand{\chaptername}{Capítulo}
+\renewcommand{\appendixname}{Apéndice}
+\renewcommand{\bibname}{Bibliografía}
+\renewcommand{\lstlistingname}{Listado}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\nouppercase{\leftmark}}
+\fancyhead[R]{\small Bola y plato}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[C]{\thepage}\renewcommand{\headrulewidth}{0pt}}
+
+\setlength{\parskip}{0.35em}
+\setlist{itemsep=0.15em,topsep=0.3em}
+
+\begin{document}
+
+% ------------------------------------------------------------------
+% Portada
+% ------------------------------------------------------------------
+\begin{titlepage}
+\centering
+\vspace*{1.2cm}
+{\large Serie de experimentos de sistemas de control\par}
+\vspace{0.4cm}
+{\color{c1}\rule{\linewidth}{1.2pt}\par}
+\vspace{0.4cm}
+{\Huge\bfseries Bola y plato\\[0.2em] (\emph{ball and plate})\par}
+\vspace{0.4cm}
+{\Large Manual teórico y práctico\par}
+\vspace{0.2cm}
+{\large Modelado, análisis, control y simulación en MATLAB/Simulink\par}
+{\color{c1}\rule{\linewidth}{1.2pt}\par}
+\vspace{1.0cm}
+\input{fig_sistema}
+\vfill
+{\large Versión 1.0 \quad·\quad Noviembre 2026\par}
+\vspace{0.6cm}
+{\small Acompaña al paquete de software \code{ball\_plate} (\code{bp\_build\_model}, \code{BallPlate}, \code{bp\_gui}).\par}
+\end{titlepage}
+
+\tableofcontents
+\listoffigures
+
+\input{cap1_intro}
+\input{cap2_modelo}
+\input{cap3_analisis}
+\input{cap4_sensores}
+\input{cap5_control}
+\input{cap6_simulink}
+\input{cap7_codigo}
+\input{cap8_practicas}
+
+\appendix
+\input{apendices}
+
+\begin{thebibliography}{9}
+\bibitem{awtar2002} S.~Awtar, C.~Bernard, N.~Boklund, A.~Master, D.~Ueda y K.~Craig, «Mechatronic design of a ball-on-plate balancing system», \emph{Mechatronics}, 12(2):217--228, 2002.
+\bibitem{hauser1992} J.~Hauser, S.~Sastry y P.~Kokotović, «Nonlinear control via approximate input-output linearization: the ball and beam example», \emph{IEEE Transactions on Automatic Control}, 37(3):392--398, 1992.
+\bibitem{astrom} K.~J.~Åström y R.~M.~Murray, \emph{Feedback Systems: An Introduction for Scientists and Engineers}, 2.ª ed., Princeton University Press, 2021.
+\bibitem{viga} \emph{Bola y viga: manual teórico y práctico}, tercer experimento de esta serie (\code{doc/ball\_beam\_manual.pdf}).
+\bibitem{lineal} \emph{Péndulo lineal (carro-péndulo): manual teórico y práctico}, primer experimento de esta serie (\code{doc/linear\_pendulum\_manual.pdf}).
+\end{thebibliography}
+
+\end{document}

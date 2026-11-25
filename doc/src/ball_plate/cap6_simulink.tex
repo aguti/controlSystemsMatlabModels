@@ -1,0 +1,120 @@
+\chapter{Implementación en Simulink}
+\label{cap:simulink}
+
+\section{Generación del modelo por script}
+
+El modelo \code{ballplate\_sim.slx} no se dibuja a mano: lo genera \code{bp\_build\_model.m} mediante \code{add\_block} y \code{add\_line}, igual que en los experimentos anteriores. De esta forma el modelo es reproducible y se reconstruye en segundos tras cualquier cambio. El código de los bloques \emph{MATLAB Function} se lee de \code{bp\_plant\_block.m}, \code{bp\_controller\_block.m} y \code{bp\_ref\_block.m}, y se inserta mediante la API de Stateflow:
+
+\begin{lstlisting}[caption={Inserción del código de un bloque \emph{MATLAB Function} y declaración de \code{P} como parámetro.}]
+rt = sfroot;
+ch = rt.find('-isa', 'Stateflow.EMChart', 'Path', blkPath);
+ch.Script = fileread('bp_controller_block.m');
+d = ch.find('-isa', 'Stateflow.Data', 'Name', 'P');
+d.Scope = 'Parameter';         % P se lee del workspace (struct ajustable)
+\end{lstlisting}
+
+\begin{aviso}
+Si se edita alguno de los archivos \code{*\_block.m}, hay que volver a ejecutar \code{bp\_build\_model}. Los cambios hechos directamente sobre el \code{.slx} se pierden al regenerarlo.
+\end{aviso}
+
+\section{Arquitectura}
+
+\begin{figure}[H]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[>=Latex,font=\small,
+  ss/.style={draw,very thick,fill=#1,minimum width=2.2cm,minimum height=1.5cm,align=center,rounded corners=1pt},
+  ss/.default=c1!10,
+  cst/.style={draw,fill=yellow!25,minimum width=1.6cm,minimum height=0.6cm,font=\footnotesize\ttfamily},
+  fw/.style={draw,fill=orange!20,minimum width=1.6cm,minimum height=0.6cm,font=\footnotesize\ttfamily},
+  sm/.style={draw,circle,inner sep=1pt}]
+\node[cst] (clk) at (0,2.2) {Clock};
+\node[cst] (cref) at (0,1.4) {cmd\_ref};
+\node[fw] (rext) at (0,0.6) {ref\_ext};
+\node[ss=gray!12] (ref) at (2.8,1.4) {Reference};
+\node[cst] (cctrl) at (2.8,-1.0) {cmd\_ctrl};
+\node[ss=c4!12] (ctl) at (5.6,0.4) {Controller};
+\node[sm] (sf) at (7.6,0.6) {$+$};
+\node[fw] (uext) at (7.6,1.7) {u\_ext};
+\node[ss=c2!12] (act) at (9.6,0.6) {Amplifier};
+\node[cst] (cd) at (11.4,2.3) {cmd\_dist};
+\node[fw] (dext) at (12.9,2.3) {d\_ext};
+\node[sm] (sd) at (12.2,1.4) {$+$};
+\node[ss=c5!14] (pl) at (12.2,0.2) {Plant};
+\node[ss=yellow!18] (sen) at (12.2,-2.0) {Sensors};
+\node[draw,fill=gray!20,minimum height=4cm,minimum width=0.15cm] (mux) at (14.8,-0.4) {};
+\node[draw,fill=c3!25,minimum width=1.5cm,minimum height=0.7cm,font=\footnotesize\ttfamily] (tel) at (16.4,-0.4) {telemetry};
+\node[draw,fill=gray!10,minimum width=1.3cm,font=\footnotesize] (tw) at (18.4,0.3) {out.tel};
+\node[draw,fill=gray!10,minimum width=1.3cm,font=\footnotesize] (sc) at (18.4,-1.1) {Scope};
+\draw[->] (clk) -| ($(ref.west)+(-0.5,0.5)$) -- ($(ref.west)+(0,0.5)$);
+\draw[->] (cref) -- (ref);
+\draw[->] (rext) -| ($(ref.west)+(-0.5,-0.5)$) -- ($(ref.west)+(0,-0.5)$);
+\draw[->] (ref.east) -- node[above]{$r$} ++(0.5,0) |- ($(ctl.west)+(0,0.3)$);
+\draw[->] (cctrl) -| ($(ctl.west)+(-0.4,-0.45)$) -- ($(ctl.west)+(0,-0.45)$);
+\draw[->] ($(ctl.east)+(0,0.2)$) -- node[above]{$\vect V_c$} (sf);
+\draw[->] (uext) -- (sf);
+\draw[->] (sf) -- node[above]{$\vect V_{\text{cmd}}$} (act);
+\draw[->] (act) -- node[above]{$\vect V$} ($(pl.west)+(0,0.4)$);
+\draw[->] (cd) -| (sd); \draw[->] (dext) -| (sd);
+\draw[->] (sd) -- node[right]{$\vect F_d$} (pl);
+\draw[->] (pl.east) -- node[above]{$\vect s$} ++(0.6,0) coordinate (b1) |- (sen.east);
+\draw[->] (sen.west) -- ++(-1.5,0) -| node[pos=0.3,below]{$\vect y_m$} ($(ctl.south)+(-0.4,0)$);
+\draw[->] (b1) -- ($(mux.west)+(0,0.6)$);
+\draw[->,densely dotted] ($(ctl.east)+(0,-0.4)$) -- node[below,font=\footnotesize]{info} ++(0.7,0) |- (14.3,-3.2) |- ($(mux.west)+(0,-1.9)$);
+\draw[->,densely dotted] (sen.east) ++(0,-0.3) -- ($(mux.west)+(0,-1.2)$);
+\draw[->] (mux) -- (tel);
+\draw[->] (tel) -- ++(0.9,0) |- (tw); \draw[->] (tel) -- ++(0.9,0) |- (sc);
+\node[font=\scriptsize,align=left,anchor=north west] at (0,-1.7) {\colorbox{yellow!25}{\strut} Constant: modificable en vivo\\ \colorbox{orange!20}{\strut} From Workspace: se lee al arrancar};
+\end{tikzpicture}}
+\caption{Nivel superior del modelo \code{ballplate\_sim}. Los bloques amarillos son el «panel de mando» que modifican la clase \code{BallPlate} y la GUI.}
+\label{fig:arquitectura}
+\end{figure}
+
+\section{Subsistemas}
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}lp{3.2cm}X@{}}
+\toprule
+Subsistema & Entradas $\to$ salidas & Contenido\\
+\midrule
+\code{Reference} & $t$, \code{cmd\_ref}, \code{ref\_ext} $\to\vect r$ & \emph{MATLAB Function} \code{bp\_ref\_block}: punto, circunferencia, cuadrado, ocho o externa. Le siguen un \emph{Rate Limiter} por eje ($\pm\SI{0.3}{m/s}$) y una \emph{Saturation} ($\pm\SI{10}{cm}$ por eje).\\
+\code{Controller} & $\vect y_m$, $\vect r$, \code{cmd\_ctrl} $\to\vect V_c$, info & ZOH sobre $\vect r$ y \emph{MATLAB Function} \code{bp\_controller\_block}. Se ejecuta a $T_s$; internamente cuenta los periodos para saber cuándo llega un fotograma nuevo.\\
+\code{Amplifier} & $\vect V_{\text{cmd}}\to\vect V$ & \emph{Saturation} $\pm V_{\max}$ en cada canal.\\
+\code{Plant} & $\vect V$, $\vect F_d\to\vect s$ & \emph{MATLAB Function} \code{bp\_plant\_block} (modelo~\eqref{eq:nl} con dos motores) más un \emph{Integrator} de 8 estados.\\
+\code{Sensors} & $\vect s\to\vect y_m$ & \textbf{Cámara}: selección de $(x,y)$, ruido, \emph{Quantizer} de un píxel, ZOH a $T_{\text{cam}}$ y \emph{Delay} de \code{cam\_delay} fotogramas. \textbf{Encoders}: selección de $(\alpha,\beta)$, ruido y \emph{Quantizer}. Todo se remuestrea a $T_s$ (figura~\ref{fig:camara}).\\
+\bottomrule
+\end{tabularx}
+\caption{Contenido de cada subsistema.}
+\end{table}
+
+\section{Configuración de la simulación}
+
+\begin{itemize}
+  \item \textbf{Solver}: ode4 de paso fijo, con $h=\SI{1}{ms}$, como en todos los experimentos de la serie.
+  \item \textbf{Tres frecuencias}: la planta es continua; el controlador y los encoders van a $T_s=\SI{2}{ms}$; la cámara, a $T_{\text{cam}}=\SI{20}{ms}$. Simulink inserta las transiciones de frecuencia. Como $T_{\text{cam}}$ y \code{cam\_delay} fijan tiempos de muestreo y longitudes de retardo, se leen al compilar el modelo: un cambio con \code{setParam} tiene efecto en el siguiente arranque, no en caliente.
+  \item \textbf{Parámetros}: todos los bloques leen el \emph{struct} \code{P} del workspace base, ajustable en caliente con \code{SimulationCommand = update} (salvo los tiempos de muestreo).
+  \item \textbf{Tiempo real y retrollamadas}: igual que en la bola y viga (\code{BallPlate.start()} activa el \emph{pacing}; \code{InitFcn}, \code{StartFcn} y \code{StopFcn} preparan el workspace y el \emph{listener}).
+\end{itemize}
+
+\section{Telemetría}
+
+El bloque \code{telemetry} concentra 23 señales, que se guardan en \code{out.tel} y se leen en vivo.
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}clll@{\hspace{0.8cm}}clll@{}}
+\toprule
+\# & Campo & Señal & Ud. & \# & Campo & Señal & Ud.\\
+\midrule
+1--4 & \code{x xd y yd} & bola (real) & m, m/s & 13--14 & \code{Vca Vcb} & tensiones pedidas & V\\
+5--8 & \code{al ald be bed} & plato (real) & rad, rad/s & 15--16 & \code{Va Vb} & tensiones aplicadas & V\\
+9--10 & \code{xm ym} & bola (cámara) & m & 17--18 & \code{rx ry} & referencia filtrada & m\\
+11--12 & \code{alm bem} & plato (encoders) & rad & 19 & \code{mode} & modo activo & --\\
+& & & & 20--21 & \code{alr ber} & ref. de inclinación (cascada) & rad\\
+& & & & 22--23 & \code{Ix Iy} & integradores & m\,s\\
+\bottomrule
+\end{tabular}
+\caption{Vector de telemetría (\code{BallPlate.TEL}).}
+\label{tab:tel}
+\end{table}

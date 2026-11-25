@@ -1,0 +1,51 @@
+\chapter{Sensores y muestreo}
+\label{cap:sensores}
+
+\section{Posición de la bola}
+
+La bola de acero hace contacto con una pista resistiva a lo largo de la viga y funciona como el cursor de un potenciómetro. La tensión se lee con un convertidor de 12 bits que cubre toda la longitud de la viga:
+\begin{equation}
+  q_x = \frac{L}{4096} = \SI{0.103}{mm}.
+\end{equation}
+
+\section{Ángulo de la viga}
+
+Un encoder de 1024 líneas en cuadratura, montado en el eje de salida de la reductora, da 4096 cuentas por vuelta:
+\begin{equation}
+  q_\alpha = \frac{2\pi}{4096} = \SI{1.53}{mrad} = 0{,}088^\circ .
+\end{equation}
+En el modelo, cada medida pasa por un bloque \emph{Quantizer}, un ruido gaussiano opcional (\code{noise\_on}, con $\sigma_x=\SI{1}{mm}$ y $\sigma_\alpha=\SI{1}{mrad}$) y un muestreo a $T_s=\SI{2}{ms}$.
+
+\section{Elección del periodo de muestreo}
+
+El polo más rápido del lazo cerrado con el LQR por defecto está en \SI{16.6}{rad/s}, y el del lazo interno de la cascada en unos \SI{27}{rad/s}. Muestreando 20--40 veces más rápido bastarían \SIrange{90}{170}{Hz}. Los \SI{500}{Hz} elegidos, los mismos que en los péndulos, dan un margen amplio y permiten que el lazo interno de la viga sea rígido.
+
+\section{Estimación de velocidades}
+
+Las velocidades $\xd$ y $\ald$ se estiman con una derivada filtrada de primer orden, discretizada de forma exacta, igual que en los péndulos:
+\begin{equation}
+  v_k = a\,v_{k-1} + (1-a)\,\frac{y_k-y_{k-1}}{T_s},\qquad a = e^{-T_s/\tau}.
+\end{equation}
+Las dos constantes de tiempo son distintas porque las dos señales lo son:
+\begin{itemize}
+  \item \textbf{Viga}: $\tau_v=\SI{5}{ms}$ (derivada pura hasta \SI{32}{Hz}). El lazo interno es rápido y necesita poco retraso.
+  \item \textbf{Bola}: $\tau_x=\SI{20}{ms}$ (\SI{8}{Hz}). Un salto de una cuenta en un periodo de muestreo se interpreta como una velocidad de $q_x/T_s=\SI{5.1}{cm/s}$, demasiado para una bola que se mueve a unos pocos cm/s cerca del equilibrio. La bola es lenta y admite más filtrado.
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[manual,height=5cm,xmin=0,xmax=0.5,xlabel={$t$ [s]},ylabel={$\xd$ [m/s]},legend pos=south west,legend columns=3]
+\addplot[gray!60,const plot,line width=0.5pt] table[x=t,y=raw]{data/velest.dat};
+\addplot[c2] table[x=t,y=filt]{data/velest.dat};
+\addplot[black,dashed] table[x=t,y=true]{data/velest.dat};
+\legend{diferencia directa,filtrada ($\tau_x=\SI{20}{ms}$),real}
+\end{axis}
+\end{tikzpicture}
+\caption{Estimación de $\xd$ a partir de $x=0{,}1\sin(2\pi t)$ cuantizada a \SI{0.103}{mm}. La diferencia directa salta entre múltiplos de \SI{5.1}{cm/s}; la filtrada es suave, pero llega con unos \SI{20}{ms} de retraso.}
+\label{fig:velest}
+\end{figure}
+
+\section{Ruido y rizado de la tensión}
+
+Con solo la cuantización, la tensión en equilibrio (LQR) tiene un rizado de \SI{0.10}{V} eficaces. Al activar el ruido de medida sube a \SI{0.85}{V} eficaces: el ruido de \SI{1}{mm} en $x$ es diez veces la resolución, y las ganancias del LQR sobre $x$ y $\xd$ ($K_x=\SI{-43.5}{V/m}$, $K_{\dot x}=\SI{-15.7}{V.s/m}$) lo amplifican. A pesar de ello, la bola real solo se mueve \SI{0.19}{mm} eficaces, porque la viga y la bola filtran mecánicamente esa tensión rápida. Es un buen punto de partida para la práctica del observador (capítulo~\ref{cap:practicas}).

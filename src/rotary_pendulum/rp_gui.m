@@ -207,7 +207,7 @@ efTh0.ValueChangedFcn = @(~,~) previewIC();
         lblS.Text = sprintf('t = %6.2f s   mode %d\nθ = %+7.1f°   α = %+6.1f°\nV = %+5.1f V   r = %+6.1f°%s', ...
             t, d(I.mode), thDeg, alDeg, d(I.Vact), rad2deg(d(I.r)), st);
         axA.Title.String = sprintf('t = %.1f s', t);
-        drawnow limitrate
+        drawnow nocallbacks   % synchronous, so the adaptive throttle sees its cost
     end
 
     function setManual(u, updateSlider)

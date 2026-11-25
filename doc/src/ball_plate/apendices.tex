@@ -1,0 +1,90 @@
+\chapter{Tabla de parámetros}
+\label{cap:parametros}
+
+\begin{table}[H]
+\centering\footnotesize
+\begin{tabularx}{\linewidth}{@{}p{4.1cm}p{3.6cm}p{2.1cm}X@{}}
+\toprule
+Campo de \code{P} & Valor & Unidad & Descripción\\
+\midrule
+\multicolumn{4}{@{}l}{\textit{Bola, plato y cardán}}\\
+\code{m}, \code{rb}, \code{bx} & 0,067 / 0,0127 / $2\cdot10^{-3}$ & kg, m, N\,s/m & bola maciza de acero\\
+\code{a}, \code{mplate}, \code{Jf} & 0,15 / 0,45 / $1{,}5\cdot10^{-3}$ & m, kg, kg\,m$^2$ & plato y marco interior\\
+\code{Db}, \code{Tc}, \code{w\_eps} & $10^{-3}$ / 0,01 / 0,05 & N\,m\,s/rad, N\,m, rad/s & fricción de cada eje\\
+\code{Jb}, \code{mb}, \code{Ja}, \code{Jbt}, \code{x\_max}, \code{kv}, \code{beq} & derivados (\code{bp\_derived}) & -- & capítulo~\ref{cap:modelo}\\
+\multicolumn{4}{@{}l}{\textit{Motores y topes}}\\
+\code{Rm}, \code{kt}, \code{km}, \code{Jm} & 2,6 / 0,00768 / 0,00768 / $3{,}9\cdot10^{-7}$ & $\Omega$, N\,m/A, V\,s/rad, kg\,m$^2$ & dos motores iguales\\
+\code{Kg}, \code{eta\_g}, \code{eta\_m}, \code{Vmax} & 70 / 0,9 / 0,69 / 10 & --, --, --, V & reductoras y amplificador\\
+\code{al\_max}, \code{k\_al}, \code{c\_al} & 0,26 / 200 / 2 & rad, N\,m/rad, N\,m\,s/rad & topes de inclinación\\
+\code{k\_x}, \code{c\_x} & 2000 / 5 & N/m, N\,s/m & borde del plato\\
+\multicolumn{4}{@{}l}{\textit{Sensores y tiempos}}\\
+\code{Tcam}, \code{cam\_delay}, \code{res\_cam} & 0,02 / 1 / $5\cdot10^{-4}$ & s, fotogramas, m & cámara\\
+\code{res\_al} & $2\pi/4096$ & rad & encoders\\
+\code{noise\_on}, \code{noise\_cam}, \code{noise\_al} & 0 / $5\cdot10^{-4}$ / $10^{-3}$ & --, m, rad & ruido de medida\\
+\code{Ts}, \code{h}, \code{tau\_v}, \code{tau\_c} & 0,002 / 0,001 / 0,005 / 0,03 & s & muestreo, solver y filtros derivativos\\
+\code{x0} & $[0{,}08;\ 0;\ -0{,}05;\ 0;\ 0;\ 0;\ 0;\ 0]$ & -- & estado inicial\\
+\multicolumn{4}{@{}l}{\textit{Referencia y controladores}}\\
+\code{x\_ref\_max}, \code{ref\_rate} & 0,10 / 0,3 & m, m/s & por eje\\
+\code{Kp\_a}, \code{Kd\_a} & 40 / 1,5 & V/rad, V\,s/rad & PD de los ángulos\\
+\code{Kp\_x}, \code{Kd\_x}, \code{Ki\_x} & 1,0 / 0,7 / 0,1 & rad/m, rad\,s/m, rad/(m\,s) & PID de la bola\\
+\code{I\_max}, \code{e\_int}, \code{al\_ref\_max}, \code{ff\_on} & 0,5 / 0,02 / 0,2 / 1 & m\,s, m, rad, -- & antisaturación, límite y prealimentación\\
+\code{Q}, \code{R} & diag(500; 60; 10; 0,5; 100) / 1 & -- & LQR de cada eje\\
+\code{Kx}, \code{Ky} & calculadas (\code{bp\_design}) & -- & ganancias LQR\\
+\bottomrule
+\end{tabularx}
+\caption{Parámetros por defecto (\code{bp\_params.m}).}
+\end{table}
+
+\chapter{Validación del modelo Simulink}
+\label{cap:validacion}
+
+Las gráficas de este manual se obtuvieron simulando \code{ballplate\_sim.slx} (MATLAB R2025b) con \code{data/generate\_data.m}. Los mismos escenarios se ejecutaron en una réplica independiente en Python (\code{python\_reference\_sim.py}), que también modela la cámara (frecuencia, latencia y píxeles), y se compararon muestra a muestra, con el limitador de pendiente desactivado.
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}lrrX@{}}
+\toprule
+Escenario & RMS $\Delta p$ [mm] & RMS $\Delta$incl. [$^\circ$] & Métrica (Python / Simulink)\\
+\midrule
+LQR desde $(8,-5)$~cm & 0,060 & 0,015 & asentamiento 1,95 / 1,95 s; $V_{\max}$ 2,7 / 2,7 V\\
+LQR, punto a punto & 0,056 & 0,014 & sobreoscilación 6,4 / 6,4\,\%\\
+LQR, golpecito & 0,248 & 0,065 & distancia máx. 3,28 / 3,36 cm\\
+LQR, circunferencia & 0,106 & 0,022 & radio 5,76 / 5,75 cm\\
+Cascada desde $(8,-5)$~cm & 0,040 & 0,010 & asentamiento 1,63 / 1,63 s\\
+Cascada, punto a punto & 0,037 & 0,009 & sobreoscilación 1,2 / 1,2\,\%\\
+Cascada, golpecito & 0,268 & 0,072 & distancia máx. 3,03 / 3,11 cm\\
+Cascada, circunferencia & 0,089 & 0,023 & radio 5,14 / 5,14 cm\\
+Cascada, cámara a \SI{25}{fps} & 0,039 & 0,009 & asentamiento 1,60 / 1,60 s\\
+Plato inclinado, bola libre & 0,179 & 0,003 & llega al borde en 1,483 / 1,484 s\\
+\bottomrule
+\end{tabularx}
+\caption{Comparación entre la réplica en Python y el modelo Simulink.}
+\label{tab:validacion}
+\end{table}
+
+Las discrepancias son menores que un píxel de la cámara (\SI{0.5}{mm}). La validación también cubre la temporización de la cámara: un error de un fotograma en la latencia produciría diferencias de varios milímetros.
+
+\begin{lstlisting}
+cd src/ball_plate/validation
+run_validation                         % MATLAB: escribe results/*.csv
+!python3 compare_with_python.py        % compara con la réplica en Python
+\end{lstlisting}
+
+\chapter{Resolución de problemas}
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}p{4.8cm}X@{}}
+\toprule
+Síntoma & Solución\\
+\midrule
+\emph{Undefined variable P} al pulsar \emph{Run} en Simulink & Ejecutar \code{BallPlate()} o \code{P = bp\_design(bp\_params())}.\\
+Los cambios en \code{bp\_*\_block.m} no tienen efecto & Volver a ejecutar \code{bp\_build\_model}.\\
+Cambiar \code{Tcam} o \code{cam\_delay} en vivo no hace nada & Son tiempos de muestreo y longitudes de retardo: se aplican en el siguiente \code{start} o \code{run}.\\
+El LQR sobreoscila mucho & Retraso de la cámara: bajar $Q_x$, subir la frecuencia de imagen o usar la cascada.\\
+La bola se queda a \SI{1}{cm} del objetivo & Prealimentación del peso desactivada (\code{ff\_on = 0}) e integrador apagado.\\
+La animación va a saltos & La clase reduce la frecuencia de la telemetría si la GUI no da abasto (\code{GuiLoad}); la simulación no se ve afectada.\\
+\bottomrule
+\end{tabularx}
+\caption{Problemas habituales.}
+\end{table}

@@ -32,7 +32,8 @@ classdef RotaryPendulum < handle
     properties
         P                       % parameter struct (rp_params + rp_design)
         Model = 'rotpend_sim'
-        TelemetryRate = 30      % rate [Hz] at which live callbacks are called
+        TelemetryRate = 30      % maximum rate [Hz] at which live callbacks are called
+        GuiLoad = 0.4           % maximum fraction of wall time spent in live callbacks
         PacingRate = 1          % 1 = real time, 0.5 = slow motion, 2 = double
     end
 
@@ -49,6 +50,7 @@ classdef RotaryPendulum < handle
         stopCallbacks = {}
         listener = []
         tick
+        cbPeriod = 0
         batch = false
         pushTimer = []
     end
@@ -314,7 +316,7 @@ classdef RotaryPendulum < handle
             obj.Last = blk.OutputPort(1).Data;
             obj.LastTime = blk.CurrentTime;
             if obj.batch || isempty(obj.telCallbacks), return; end
-            if toc(obj.tick) >= 1/obj.TelemetryRate
+            if toc(obj.tick) >= obj.cbPeriod
                 obj.tick = tic;
                 for k = 1:numel(obj.telCallbacks)
                     try
@@ -323,6 +325,11 @@ classdef RotaryPendulum < handle
                         warning(err.identifier, '%s', err.message);
                     end
                 end
+                % Adaptive throttle: callbacks (GUI drawing) run on the same
+                % thread as the simulation. Space them so that they use at
+                % most GuiLoad of the wall time; the simulation keeps real
+                % time and only the frame rate drops on slow machines.
+                obj.cbPeriod = max(1/obj.TelemetryRate, toc(obj.tick)/obj.GuiLoad);
             end
         end
 

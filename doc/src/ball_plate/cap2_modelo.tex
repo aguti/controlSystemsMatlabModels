@@ -1,0 +1,102 @@
+\chapter{Modelado dinámico}
+\label{cap:modelo}
+
+\section{Cinemática}
+
+Tomamos como coordenadas generalizadas $\vect q=[x,\ y,\ \alpha,\ \beta]^\top$, donde $(x,y)$ es la posición de la bola medida sobre el plato. Para inclinaciones moderadas (los topes están en $\pm15^\circ$) se desprecian los términos de tercer orden en los ángulos de la cardán, y la velocidad angular del plato tiene componentes $\ald$ alrededor de $y$ y $\bed$ alrededor de $x$. La bola se mueve sobre el plato con velocidad $(\xd,\yd)$ y, además, el giro del plato la arrastra en dirección normal a él con velocidad $x\ald+y\bed$:
+\begin{equation}
+  |\dot{\vect p}|^2 = \xd^2 + \yd^2 + \left(x\ald + y\bed\right)^2 .
+\end{equation}
+
+\paragraph{Rodadura sin deslizamiento.} Igual que en la bola y viga~\cite{viga}, la bola gira respecto al plato a $\xd/r_b$ y $\yd/r_b$, y su energía de rotación introduce la masa efectiva $m_b=m+J_b/r_b^2=\tfrac75m$ y los acoplamientos $-(J_b/r_b)\,\xd\ald$ y $-(J_b/r_b)\,\yd\bed$.
+
+\section{Energías}
+
+Sean $J_\alpha$ y $J_\beta$ las inercias que ve cada motor, incluida la del rotor reflejada por la reductora. El eje $\alpha$ mueve el plato \emph{y} el marco interior de la cardán, de modo que $J_\alpha>J_\beta$:
+\begin{equation}
+  J_\alpha = J_{\text{plato}} + J_f + \eta_gK_g^2J_m,\qquad
+  J_\beta  = J_{\text{plato}} + \eta_gK_g^2J_m,\qquad
+  J_{\text{plato}} = \tfrac{1}{12}m_p(2a)^2 .
+  \label{eq:inercias}
+\end{equation}
+La energía cinética es
+\begin{equation}
+  \boxed{\begin{aligned}
+  T ={}& \tfrac12 m_b\left(\xd^2+\yd^2\right) - \frac{J_b}{r_b}\left(\xd\ald+\yd\bed\right)\\
+    &+ \tfrac12\left(J_\alpha+J_b+mx^2\right)\ald^2 + \tfrac12\left(J_\beta+J_b+my^2\right)\bed^2 + m\,x\,y\,\ald\bed
+  \end{aligned}}
+  \label{eq:T}
+\end{equation}
+y la potencial $U=mg\left(x\sin\alpha+y\sin\beta\right)$. El término $m\,x\,y\,\ald\bed$ es el único que acopla \emph{inercialmente} los dos ejes: con la bola fuera de los ejes coordenados, girar el plato alrededor de $y$ exige un par alrededor de $x$.
+
+\section{Ecuaciones de Euler--Lagrange}
+
+Con las fuerzas generalizadas $Q_x=F_{dx}-b_x\xd$, $Q_y=F_{dy}-b_x\yd$, $Q_\alpha=\tau_a$ y $Q_\beta=\tau_b$ (pares de los motores menos fricciones):
+\begin{align}
+  m_b\xdd - \tfrac{J_b}{r_b}\aldd - m x\ald^2 - m y\ald\bed + mg\sin\alpha &= Q_x, \label{eq:elx}\\
+  m_b\ydd - \tfrac{J_b}{r_b}\bedd - m y\bed^2 - m x\ald\bed + mg\sin\beta &= Q_y, \label{eq:ely}\\
+  -\tfrac{J_b}{r_b}\xdd + \left(J_\alpha+J_b+mx^2\right)\aldd + mxy\,\bedd + 2mx\xd\ald + m(\xd y + x\yd)\bed + mgx\cos\alpha &= Q_\alpha, \label{eq:ela}\\
+  -\tfrac{J_b}{r_b}\ydd + mxy\,\aldd + \left(J_\beta+J_b+my^2\right)\bedd + 2my\yd\bed + m(\xd y + x\yd)\ald + mgy\cos\beta &= Q_\beta. \label{eq:elb}
+\end{align}
+Las ecuaciones~\eqref{eq:elx} y~\eqref{eq:ela} son las de la bola y viga más los términos que contienen $y$ o $\beta$; análogamente para~\eqref{eq:ely} y~\eqref{eq:elb}.
+
+\section{Forma matricial}
+
+\begin{equation}
+  \underbrace{\begin{bmatrix}
+    m_b & 0 & -c & 0\\
+    0 & m_b & 0 & -c\\
+    -c & 0 & J_\alpha+J_b+mx^2 & mxy\\
+    0 & -c & mxy & J_\beta+J_b+my^2
+  \end{bmatrix}}_{\vect M(x,y)}
+  \begin{bmatrix}\xdd\\ \ydd\\ \aldd\\ \bedd\end{bmatrix}
+  = \vect f(\vect q,\dot{\vect q},V_a,V_b),\qquad c=\frac{J_b}{r_b},
+  \label{eq:nl}
+\end{equation}
+donde $\vect f$ reúne todos los términos que no contienen aceleraciones, los pares de los motores, las fricciones, las perturbaciones y las fuerzas de los topes. \code{bp\_plant\_block.m} construye $\vect M$ y $\vect f$ y resuelve el sistema $4\times4$ en cada paso del integrador.
+
+\paragraph{Topes.} La bola choca con el borde del plato en $|x|=x_{\max}$ o $|y|=x_{\max}$, con $x_{\max}=a-r_b=\SI{13.7}{cm}$; el plato, con los topes de la cardán en $\pm15^\circ$. Ambos se modelan como muelles-amortiguadores rígidos que solo empujan.
+
+\section{Motores}
+
+Los dos motores son iguales al de la bola y viga: reductora $K_g=70$, $k_v=\SI{0.128}{N.m/V}$ y un amortiguamiento por fuerza contraelectromotriz $b_{\text{eq}}=\SI{0.070}{N.m.s/rad}$ (véase~\cite{viga}). Para cada eje,
+\begin{equation}
+  \tau_a = k_v\left(V_a - K_gk_m\ald\right) - D_b\ald - T_c\tanh(\ald/\omega_\epsilon),
+  \label{eq:motor}
+\end{equation}
+y análogamente $\tau_b$ con $V_b$ y $\bed$.
+
+\begin{ejemplo}{Inercias con los parámetros por defecto}
+$J_{\text{plato}}=\SI{3.38e-3}{kg.m^2}$, $J_f=\SI{1.5e-3}{kg.m^2}$ y la inercia reflejada del rotor $\SI{1.72e-3}{kg.m^2}$, de modo que
+\[
+J_\alpha=\SI{6.59e-3}{kg.m^2},\qquad J_\beta=\SI{5.09e-3}{kg.m^2}.
+\]
+El eje $\beta$ es un 23\,\% más ligero, así que sus ganancias LQR salen algo distintas. Con la bola en una esquina, $(x,y)=(\SI{10}{cm},\SI{10}{cm})$, el término cruzado $mxy=\SI{6.7e-4}{kg.m^2}$ es un 10\,\% de los diagonales: el acoplamiento existe, pero es moderado.
+\end{ejemplo}
+
+\section{Parámetros por defecto}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}llll@{}}
+\toprule
+Parámetro & Símbolo & Valor & Campo en \code{P}\\
+\midrule
+Masa y radio de la bola & $m$, $r_b$ & \SI{0.067}{kg}, \SI{12.7}{mm} & \code{m}, \code{rb}\\
+Fricción de rodadura & $b_x$ & \SI{2e-3}{N.s/m} & \code{bx}\\
+Semilado del plato & $a$ & \SI{0.15}{m} & \code{a}\\
+Masa del plato & $m_p$ & \SI{0.45}{kg} & \code{mplate}\\
+Inercia del marco interior & $J_f$ & \SI{1.5e-3}{kg.m^2} & \code{Jf}\\
+Fricción viscosa / Coulomb (cada eje) & $D_b$, $T_c$ & \SI{1e-3}{N.m.s/rad}, \SI{0.01}{N.m} & \code{Db}, \code{Tc}\\
+Motores (iguales) & $R_m$, $k_t$, $K_g$ & \SI{2.6}{\ohm}, \SI{7.68e-3}{N.m/A}, 70 & \code{Rm}, \code{kt}, \code{Kg}\\
+Saturación del amplificador & $V_{\max}$ & \SI{10}{V} & \code{Vmax}\\
+Topes de inclinación & $\alpha_{\max}$ & $15^\circ$ & \code{al\_max}\\
+\bottomrule
+\end{tabular}
+\caption{Parámetros físicos por defecto (\code{bp\_params.m}). La tabla completa está en el apéndice~\ref{cap:parametros}.}
+\label{tab:param}
+\end{table}
+
+\begin{aviso}
+$J_b$, $m_b$, $J_\alpha$, $J_\beta$, $x_{\max}$, $k_v$ y $b_{\text{eq}}$ son \emph{derivados}: los recalcula \code{bp\_derived} (llamada desde \code{bp\_design}). Si se cambia \code{m}, \code{a} o \code{mplate} con \code{setParam}, todo se actualiza. Con \code{setParamRaw} no se recalcula nada.
+\end{aviso}

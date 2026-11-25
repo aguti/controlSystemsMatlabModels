@@ -1,0 +1,68 @@
+\chapter{La cámara como sensor}
+\label{cap:camara}
+
+\section{Modelo de la cámara}
+
+La posición de la bola la mide una cámara cenital que ve el plato completo. El procesado de imagen (segmentar la bola y calcular su centroide) no se simula; sí se simulan las tres propiedades que importan para el control:
+\begin{itemize}
+  \item \textbf{Frecuencia de imagen}: un fotograma cada $T_{\text{cam}}=\SI{20}{ms}$ (\SI{50}{fps}). Entre fotogramas, la medida no cambia.
+  \item \textbf{Latencia}: el fotograma llega al controlador \code{cam\_delay} = 1 fotograma después de tomarse (exposición, transferencia y procesado).
+  \item \textbf{Resolución}: 600 píxeles a lo ancho del plato, es decir, $q_{\text{cam}}=\SI{0.5}{mm}$ por píxel. Opcionalmente, ruido gaussiano de $\sigma=\SI{0.5}{mm}$.
+\end{itemize}
+En el modelo es una cadena \emph{Quantizer} $\to$ ZOH a $T_{\text{cam}}$ $\to$ \emph{Delay} de \code{cam\_delay} muestras, remuestreada después a $T_s$ (figura~\ref{fig:camara}). Los ángulos del plato, en cambio, se miden con encoders de 4096 cuentas por vuelta a \SI{500}{Hz}, como en la bola y viga.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[manual,height=4.8cm,xmin=3,xmax=3.3,xlabel={$t$ [s]},ylabel={$x$ [cm]},legend pos=north west]
+\addplot[c1] table[x=t,y=x]{data/camera.dat};
+\addplot[c2,const plot] table[x=t,y=xm]{data/camera.dat};
+\legend{$x$ real,$x$ medida por la cámara}
+\end{axis}
+\end{tikzpicture}
+\caption{Posición real y medida durante una circunferencia de \SI{6}{cm} a \SI{0.5}{Hz}. La medida se actualiza cada \SI{20}{ms} y llega con un fotograma de retraso.}
+\label{fig:camara}
+\end{figure}
+
+\section{Retraso efectivo}
+
+Para el lazo de control, la cámara equivale aproximadamente a un retardo puro de
+\begin{equation}
+  T_{\text{ef}} \approx \underbrace{\texttt{cam\_delay}\cdot T_{\text{cam}}}_{\text{latencia}} + \underbrace{T_{\text{cam}}/2}_{\text{retención}} = \SI{30}{ms}.
+\end{equation}
+A esto se suma el filtro de la derivada de la velocidad de la bola, $\tau_c=\SI{30}{ms}$, que solo afecta a $\xd$ e $\yd$. Un retardo $T$ resta una fase $\omega T$ a la frecuencia $\omega$: a la frecuencia de cruce del LQR (unos \SI{6}{rad/s}) son $10^\circ$ de margen de fase, y el doble si la latencia es de dos fotogramas.
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Retraso de la medida de la bola & Polos dominantes (LQR sin integral) & $\zeta$\\
+\midrule
+ninguno & $-5{,}12\pm j5{,}75$ & 0,67\\
+\SI{10}{ms} & $-4{,}69\pm j5{,}97$ & 0,62\\
+\SI{30}{ms} & $-3{,}90\pm j6{,}22$ & 0,53\\
+\SI{50}{ms} & $-3{,}23\pm j6{,}29$ & 0,46\\
+\bottomrule
+\end{tabular}
+\caption{Efecto de un retraso en la medida de la bola sobre los polos del eje $x$ con la ganancia LQR por defecto (retraso aproximado por un retardo de primer orden de constante $T/2$).}
+\label{tab:retraso}
+\end{table}
+
+El retraso no desestabiliza el sistema con las ganancias por defecto, pero le quita amortiguamiento. En simulación, un escalón de posición con el LQR tarda \SI{1.47}{s} sin latencia, \SI{2.06}{s} con un fotograma (el valor por defecto), \SI{4.27}{s} con dos y \SI{4.92}{s} con tres, con sobreoscilaciones del 4, 7, 12 y 23\,\%.
+
+\section{Sistema multifrecuencia}
+
+El controlador se ejecuta a $T_s=\SI{2}{ms}$, pero solo recibe una posición nueva de la bola cada $N_{\text{cam}}=T_{\text{cam}}/T_s=10$ periodos. \code{bp\_controller\_block.m} lleva un contador y separa las dos frecuencias:
+\begin{itemize}
+  \item \textbf{Cada $T_s$}: se estiman las velocidades angulares del plato (derivada filtrada con $\tau_v=\SI{5}{ms}$) y se ejecutan los lazos internos de los ángulos.
+  \item \textbf{Cada fotograma nuevo}: se estima la velocidad de la bola con la diferencia entre dos fotogramas,
+  \begin{equation}
+    v_k = a\,v_{k-1} + (1-a)\,\frac{p_k-p_{k-1}}{T_{\text{cam}}},\qquad a=e^{-T_{\text{cam}}/\tau_c},
+  \end{equation}
+  se actualizan los integradores y, en la cascada, las referencias de inclinación.
+\end{itemize}
+Derivar con la diferencia entre muestras consecutivas de \SI{2}{ms} sería un error: la posición está congelada durante nueve de cada diez periodos y la velocidad estimada sería cero salvo un pico de diez veces su valor en cada fotograma nuevo.
+
+\section{Ruido}
+
+Con solo la cuantización de la cámara, el rizado de las tensiones en equilibrio es de \SI{0.09}{V} eficaces. Con el ruido activado sube a \SI{0.33}{V}, y la bola se mueve \SI{0.5}{mm} eficaces y el plato $0{,}15^\circ$. El rizado es mucho menor que en la bola y viga (\SI{0.85}{V}) porque la derivada se calcula a \SI{50}{Hz} y no a \SI{500}{Hz}: un mismo error de posición produce un error de velocidad diez veces menor.

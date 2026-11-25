@@ -1,0 +1,50 @@
+K = [-43.5 -15.74 18.79 1.182 -14.14]
+A = [0 1 0 0;-0.3473 -0.02133 -7.008 -0.037;0 0 0 1;-95.7 -0.001057 -0.3473 -10.2]
+B = [0;0.06784;0;18.7]
+poles_OL = [-10.68 3.624 -1.579+3.851i -1.579-3.851i]
+poles_CL = [-16.65 -4.897+5.781i -4.897-5.781i -4.37 -0.4436]
+Jb = 4.323e-06  mb = 0.0938  J = 0.006865  Jbeam = 0.005145  Jrot = 0.00172
+kv = 0.1284  beq = 0.07003  b_emf = 0.06903  x_max = 0.1973
+ball accel per rad = 7.007 (5/7 g)
+stall torque = 1.284 N m, max weight torque = 0.1297 N m, V to hold ball at end = 1.01 V
+zpk_y1: zeros=[43.94 -43.94]  poles=[-10.68 3.624 -1.579+3.851i -1.579-3.851i]  k=0.06784
+zpk_y2: zeros=[0 -0.02132]  poles=[-10.68 3.624 -1.579+3.851i -1.579-3.851i]  k=18.7
+rank_ctrb = 4  cond = 1.09e+04
+rank_obs: x only 4, alpha only 4
+poles_inner = [-19.1+19.57i -19.1-19.57i 0.9141 -0.9812]
+poles_cascade_PD = [-14.33+17.77i -14.33-17.77i -2.298 -5.128]
+beam_tilt -2deg: reaches stop at 1.283 s (theory 1.270 s), final al -3.03 deg
+inner step 5deg: final 4.966 deg, overshoot 0.8 %, t95 0.110 s
+lqr_ic: settle5mm 0.68, Vmax 4.35, min al -5.87 max al 9.63, undershoot -0.26 cm
+lqr_step: settle5mm 0.85 s after step, overshoot 2.6 %, final 10.01 cm, Vmax 1.03, max|al| 5.87
+cascade_step: settle5mm 1.67 s after step, overshoot 0.7 %, final 10.06 cm, Vmax 1.10, max|al| 3.52
+lqr_step no ratelim: settle5mm 0.64, overshoot 2.5 %, Vmax 3.84, max|al| 9.10
+cascade_step no ratelim: settle5mm 1.50, overshoot 0.8 %, Vmax 5.20, max|al| 6.89
+cascade Ki=0 ff=1: final x 9.99 cm, final al 0.041 deg, final V 0.653
+cascade Ki=0 ff=0: final x 11.09 cm, final al 0.020 deg, final V 0.568
+ff static: m g r / kv at r = 10 cm = 0.512 V
+lqr ff=0: x at 3 s 11.22 cm, final 10.04 cm, settle5mm 3.62
+lqr_tap: max|x| 1.93 cm, settle2mm 2.22 s after tap, Vmax 1.16
+cascade_tap: max|x| 1.69 cm, settle2mm 1.20 s after tap, Vmax 1.85
+qsweep Qx=200: K [-29.2 -12.5 16.5 1.1 -14.1] settle 1.24 Vmax 2.92 max|al| 6.65
+qsweep Qx=1000: K [-43.5 -15.7 18.8 1.18 -14.1] settle 0.68 Vmax 4.35 max|al| 9.63
+qsweep Qx=5000: K [-80.6 -23.5 23.7 1.36 -14.1] settle 0.52 Vmax 8.05 max|al| 16.14
+rsweep 0.1: K [-124 -44.5 45.3 2.79 -44.7] settle 0.74 Vmax 10.00
+rsweep 10: K [-18.7 -6.36 9.59 0.647 -4.47] settle 2.50 Vmax 1.87
+msweep lqr m=0.03: settle 0.80 overshoot 2.6 % final 9.98 cm
+msweep cascade m=0.03: settle 1.68 overshoot 0.7 % final 10.06 cm
+msweep lqr m=0.134: settle 1.23 overshoot 2.8 % final 10.05 cm
+msweep cascade m=0.134: settle 1.67 overshoot 0.7 % final 10.07 cm
+msweep lqr m=0.268: settle 1.78 overshoot 4.0 % final 10.13 cm
+msweep cascade m=0.268: settle 1.66 overshoot 0.7 % final 10.05 cm
+sine lqr 0.1 Hz: gain 1.007 lag 14.0
+sine lqr 0.25 Hz: gain 0.964 lag 35.4
+sine lqr 0.5 Hz: gain 0.881 lag 69.0
+sine cascade 0.1 Hz: gain 0.942 lag 23.1
+sine cascade 0.25 Hz: gain 0.831 lag 50.8
+sine cascade 0.5 Hz: gain 0.579 lag 88.3
+noise: x std 0.193 mm, al std 0.078 deg, V std 0.848
+quantization only: x std 0.422 mm, V std 0.096
+velest: quantum velocity 0.05127 m/s, raw std err 0.02187, filt std err 0.05685
+frames at t = [0 0.5 0.8 2.5] (LQR, step to 12 cm at 0.2 s)
+gui run: t end 7.51, CmdRef [1 0 0.1 0.1], max|x| 10.50 cm

@@ -1,0 +1,100 @@
+\chapter{Análisis lineal}
+\label{cap:analisis}
+
+\section{Linealización}
+
+Con la viga horizontal y la bola en reposo, \emph{cualquier} posición $x_0$ de la bola es un equilibrio, siempre que el motor compense el par que hace la bola sobre la viga:
+\begin{equation}
+  V_{\text{eq}}(x_0) = \frac{m g x_0}{k_v} .
+  \label{eq:veq}
+\end{equation}
+Linealizamos alrededor de $x_0=0$, $\alpha=0$. Los términos centrífugo y de Coriolis son de segundo orden y desaparecen; $\sin\alpha\approx\alpha$ y $\cos\alpha\approx1$:
+\begin{equation}
+  \underbrace{\begin{bmatrix} m_b & -J_b/r_b\\ -J_b/r_b & J+J_b\end{bmatrix}}_{\vect M_0}
+  \begin{bmatrix}\xdd\\ \aldd\end{bmatrix}
+  =
+  \begin{bmatrix} -m g\,\alpha - b_x\xd\\ k_vV - b_{\text{eq}}\ald - m g\,x\end{bmatrix}.
+  \label{eq:lin}
+\end{equation}
+Despejando las aceleraciones y con $\vect s=[x,\ \xd,\ \alpha,\ \ald]^\top$ se obtiene $\dot{\vect s}=A\vect s+BV$, $\vect y=C\vect s$, con $C=\left[\begin{smallmatrix}1&0&0&0\\0&0&1&0\end{smallmatrix}\right]$. Es lo que calcula \code{bb\_linearize(P)}. La fricción de Coulomb se desprecia.
+
+\begin{ejemplo}{Matrices numéricas (\code{bb\_linearize})}
+\[
+A=\begin{bmatrix}0&1&0&0\\ -0{,}347&-0{,}021&-7{,}008&-0{,}037\\ 0&0&0&1\\ -95{,}7&-0{,}001&-0{,}347&-10{,}20\end{bmatrix},\qquad
+B=\begin{bmatrix}0\\ 0{,}068\\ 0\\ 18{,}70\end{bmatrix}.
+\]
+Los dos elementos dominantes cuentan casi toda la historia:
+\begin{itemize}
+  \item $A(2,3)=-7{,}008\approx-\tfrac57g$: inclinar la viga un radián acelera la bola a $\SI{7}{m/s^2}$ hacia el extremo bajo.
+  \item $A(4,1)=-mg/J=-95{,}7$: la bola en $x>0$ hace caer el extremo $+x$ de la viga.
+\end{itemize}
+Los términos pequeños ($-0{,}347$, $0{,}068$, \ldots) vienen del acoplamiento por el giro de la bola, $J_b/r_b$.
+\end{ejemplo}
+
+\section{Polos en lazo abierto}
+
+\begin{equation}
+  \lambda_{\text{LA}} = \{-10{,}68,\quad +3{,}62,\quad -1{,}58\pm j3{,}85\}.
+\end{equation}
+Despreciando el acoplamiento por el giro de la bola y la fricción de rodadura, el polinomio característico tiene una forma muy instructiva:
+\begin{equation}
+  s^3\left(Js + b_{\text{eq}}\right) = mg\cdot\tfrac57 g
+  \quad\Longrightarrow\quad
+  \lambda\approx\{-10{,}74,\ +3{,}65,\ -1{,}55\pm j3{,}84\}.
+  \label{eq:caract}
+\end{equation}
+El lado izquierdo es el de una viga sin bola ($s(Js+b_{\text{eq}})$, un integrador y el polo mecánico en $-b_{\text{eq}}/J=-10{,}2$) en serie con la bola como doble integrador ($s^2$). El lado derecho es el lazo que cierra el peso de la bola: la bola inclina la viga hacia su lado y la viga acelera la bola en el mismo sentido. Es una \textbf{realimentación positiva} que convierte los tres polos en el origen en un polo real inestable ($+3{,}62$, constante de tiempo de \SI{0.28}{s}) y un par complejo estable.
+
+\begin{nota}
+En la literatura es habitual estudiar la bola y viga con la viga posicionada por un servo ideal, $\ddot x=-\tfrac57g\alpha$. Ese modelo es un doble integrador puro y no tiene el polo en $+3{,}62$. Aquí la viga está movida directamente por el motor, y el peso de la bola importa: un par de \SI{0.13}{N.m} con la bola en el extremo frente a los \SI{1.28}{N.m} del motor saturado.
+\end{nota}
+
+\section{Funciones de transferencia}
+
+\paragraph{Tensión a posición de la bola.}
+\begin{equation}
+  G_x(s)=\frac{X(s)}{V(s)} = \frac{0{,}068\,(s-43{,}9)(s+43{,}9)}{(s+10{,}68)(s-3{,}62)(s^2+3{,}16s+17{,}3)} .
+\end{equation}
+Para frecuencias bajas, $G_x(s)\approx-130/[(s+10{,}68)(s-3{,}62)(s^2+3{,}16s+17{,}3)]$: \textbf{relativo de grado 4}, con un desfase que crece deprisa. Los ceros en $\pm43{,}9$ son consecuencia del giro de la bola: una aceleración brusca de la viga empuja la bola directamente a través de su inercia de rotación ($-J_b/r_b\,\aldd$ en~\eqref{eq:el1}). Están lejos de la banda de trabajo y apenas influyen, pero formalmente el sistema es de fase no mínima.
+
+\paragraph{Tensión a ángulo de la viga.}
+\begin{equation}
+  G_\alpha(s)=\frac{A(s)}{V(s)} = \frac{18{,}70\,s\,(s+0{,}021)}{(s+10{,}68)(s-3{,}62)(s^2+3{,}16s+17{,}3)} .
+\end{equation}
+El cero en el origen tiene una lectura física clara: en un equilibrio la bola está quieta, así que la viga debe estar horizontal; una tensión constante no inclina la viga en régimen permanente, sino que \emph{desplaza la posición de equilibrio de la bola}, según~\eqref{eq:veq}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=1 by 2,vertical sep=0.4cm,xticklabels at=edge bottom},
+  manual,height=4.3cm,xmode=log,xmin=0.1,xmax=100]
+\nextgroupplot[ylabel={Magnitud [dB]},legend pos=north east]
+\addplot[c1] table[x=f,y=mag]{data/bode_x.dat};
+\addplot[c2] table[x=f,y=mag]{data/bode_al.dat};
+\legend{$X/V$ [m/V],$A/V$ [rad/V]}
+\nextgroupplot[ylabel={Fase [$^\circ$]},xlabel={$f$ [Hz]}]
+\addplot[c1] table[x=f,y=ph]{data/bode_x.dat};
+\addplot[c2] table[x=f,y=ph]{data/bode_al.dat};
+\end{groupplot}
+\end{tikzpicture}
+\caption{Diagrama de Bode del modelo lineal. Entre \SI{2}{Hz} y \SI{7}{Hz}, $X/V$ cae \SI{36}{dB}: la bola apenas responde a tensiones rápidas.}
+\label{fig:bode}
+\end{figure}
+
+\section{Controlabilidad y observabilidad}
+
+\begin{itemize}
+  \item \textbf{Controlabilidad}: la matriz $\mathcal C=[B,\ AB,\ A^2B,\ A^3B]$ tiene rango 4, aunque con un número de condición alto ($\approx10^4$): la bola se controla \emph{a través} de la viga, con tres integraciones de por medio.
+  \item \textbf{Observabilidad desde $x$}: rango 4.
+  \item \textbf{Observabilidad desde $\alpha$}: también rango 4, a diferencia del péndulo rotacional. El par que hace el peso de la bola deja su huella en el movimiento de la viga, así que en teoría se podría reconstruir $x$ midiendo solo $\alpha$. En la práctica la estimación sería muy sensible a errores en $m$ y en la fricción, y por eso se mide $x$ directamente.
+\end{itemize}
+
+\section{Lectura en cascada}
+
+La estructura de~\eqref{eq:lin} sugiere dividir el sistema en dos:
+\begin{equation}
+  \underbrace{V\ \xrightarrow{\ \text{motor + viga}\ }\ \alpha}_{\text{rápido: } \tau\approx J/b_{\text{eq}}=\SI{0.1}{s}}
+  \qquad\qquad
+  \underbrace{\alpha\ \xrightarrow{\ -\frac57 g/s^2\ }\ x}_{\text{lento: doble integrador}}
+\end{equation}
+Si un lazo interno hace que $\alpha$ siga a una referencia $\alpha_r$ mucho más deprisa de lo que se mueve la bola, el lazo externo ve una planta $X/A_r\approx-\tfrac57g/s^2$ y se puede diseñar con un PD o un PID clásico. Es la idea del controlador en cascada (sección~\ref{sec:cascada}). El precio es que el lazo interno tiene que ser rígido frente al par $mgx$ de la bola, o se necesita compensarlo (sección~\ref{sec:ff}).

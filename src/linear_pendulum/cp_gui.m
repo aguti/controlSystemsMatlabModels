@@ -181,7 +181,7 @@ uManual = 0; keyDown = false;
         lblS.Text = sprintf('t = %6.2f s   mode %d\nx = %+.3f m   θ = %+6.1f°\nF = %+5.1f N   r = %+.2f m%s', ...
             t, d(I.mode), d(I.x), thd, d(I.Fact), d(I.r), st);
         axA.Title.String = sprintf('t = %.1f s', t);
-        drawnow limitrate
+        drawnow nocallbacks   % synchronous, so the adaptive throttle sees its cost
     end
 
     function setManual(u, updateSlider)
