@@ -1,0 +1,123 @@
+\chapter{Modelado dinámico}
+\label{cap:modelo}
+
+\section{Coordenadas generalizadas}
+
+El sistema tiene dos grados de libertad, que tomamos como coordenadas generalizadas: $\vect{q}=[x,\ \theta]^\top$. La varilla se modela como un sólido rígido. Su centro de masas (CdM) está a una distancia $l=L_p/2$ del pivote, y su momento de inercia respecto al CdM es $J=mL_p^2/12$. La posición del CdM es
+\begin{equation}
+  x_G = x + l\sin\theta, \qquad y_G = l\cos\theta,
+\end{equation}
+y su velocidad
+\begin{equation}
+  \dot{x}_G = \xd + l\cos\theta\,\thd, \qquad \dot{y}_G = -l\sin\theta\,\thd .
+\end{equation}
+
+\section{Energías y lagrangiano}
+
+La energía cinética es la suma de la del carro, la de traslación del CdM de la varilla y la de rotación de la varilla:
+\begin{align}
+  T &= \tfrac12 M\xd^2 + \tfrac12 m\left(\dot{x}_G^2+\dot{y}_G^2\right) + \tfrac12 J\thd^2 \nonumber\\
+    &= \tfrac12 (M+m)\xd^2 + m l\cos\theta\,\xd\thd + \tfrac12\left(J+ml^2\right)\thd^2 .
+  \label{eq:T}
+\end{align}
+Llamaremos $\Jp = J+ml^2$ al momento de inercia de la varilla respecto al pivote (para la varilla uniforme, $\Jp=mL_p^2/3$). Tomando la altura del pivote como referencia, la energía potencial es
+\begin{equation}
+  V = m g l\cos\theta ,
+\end{equation}
+y el lagrangiano $\mathcal{L}=T-V$.
+
+\section{Ecuaciones de Euler--Lagrange}
+
+Las fuerzas generalizadas no conservativas son la fuerza del actuador, las fricciones, los topes del raíl y la perturbación $F_d$, que se aplica horizontalmente en la punta de la varilla, en $(x+L_p\sin\theta,\ L_p\cos\theta)$. El trabajo virtual de $F_d$ vale $F_d\,\delta(x+L_p\sin\theta)=F_d\,\delta x + F_dL_p\cos\theta\,\delta\theta$, de modo que
+\begin{equation}
+  Q_x = F + F_d - F_f(\xd) + F_w(x,\xd), \qquad Q_\theta = -b_p\thd + F_dL_p\cos\theta .
+\end{equation}
+Aplicando $\frac{\dd}{\dd t}\frac{\partial\mathcal L}{\partial\dot q_i}-\frac{\partial\mathcal L}{\partial q_i}=Q_i$:
+
+\paragraph{Coordenada $x$.} $\frac{\partial\mathcal L}{\partial\xd}=(M+m)\xd+ml\cos\theta\,\thd$, y $\frac{\partial\mathcal L}{\partial x}=0$, de donde
+\begin{equation}
+  (M+m)\xdd + ml\cos\theta\,\thdd - ml\sin\theta\,\thd^2 = F + F_d - F_f + F_w .
+  \label{eq:el1}
+\end{equation}
+
+\paragraph{Coordenada $\theta$.} $\frac{\partial\mathcal L}{\partial\thd}=ml\cos\theta\,\xd+\Jp\thd$, y $\frac{\partial\mathcal L}{\partial\theta}=-ml\sin\theta\,\xd\thd+mgl\sin\theta$. Por tanto,
+\begin{equation}
+  ml\cos\theta\,\xdd + \Jp\thdd - mgl\sin\theta = -b_p\thd + F_dL_p\cos\theta .
+  \label{eq:el2}
+\end{equation}
+
+\section{Forma matricial}
+
+Las ecuaciones~\eqref{eq:el1}--\eqref{eq:el2} se escriben como
+\begin{equation}
+\underbrace{\begin{bmatrix} M+m & ml\cos\theta\\ ml\cos\theta & \Jp\end{bmatrix}}_{\mathbf{M}(\theta)}
+\begin{bmatrix}\xdd\\ \thdd\end{bmatrix}
+=
+\underbrace{\begin{bmatrix} F + F_d - F_f + F_w + ml\sin\theta\,\thd^2\\ mgl\sin\theta - b_p\thd + F_dL_p\cos\theta\end{bmatrix}}_{\vect{h}(\vect{q},\dot{\vect{q}},F,F_d)} .
+\label{eq:matricial}
+\end{equation}
+La matriz de masas $\mathbf{M}(\theta)$ es simétrica y definida positiva para todo $\theta$, porque
+\begin{equation}
+  \det\mathbf{M} = (M+m)\Jp - m^2l^2\cos^2\theta \ \ge\ (M+m)\Jp-m^2l^2 = MJ_p + mJ > 0 .
+\end{equation}
+Así que siempre puede invertirse, y el modelo de estado no lineal queda
+\begin{equation}
+  \dot{\vect{s}} = \vect{f}(\vect{s},F,F_d) =
+  \begin{bmatrix}\xd\\ [\mathbf{M}^{-1}\vect{h}]_1\\ \thd\\ [\mathbf{M}^{-1}\vect{h}]_2\end{bmatrix}.
+  \label{eq:nl}
+\end{equation}
+Esto es exactamente lo que implementa \code{cp\_plant\_block.m}, que resuelve el sistema $2\times2$ con \code{Mt\textbackslash rhs} en cada evaluación.
+
+\begin{ejemplo}{Matriz de masas con los parámetros por defecto}
+Con $M=\SI{0.5}{kg}$, $m=\SI{0.2}{kg}$ y $L_p=\SI{0.6}{m}$ se obtiene $l=\SI{0.3}{m}$, $J=\SI{0.006}{kg.m^2}$ y $\Jp=\SI{0.024}{kg.m^2}$. En $\theta=0$:
+\[
+\mathbf{M}(0)=\begin{bmatrix}0{,}70 & 0{,}06\\ 0{,}06 & 0{,}024\end{bmatrix},\qquad
+\det\mathbf{M}(0)=0{,}0168-0{,}0036=\SI{0.0132}{}.
+\]
+El término de acoplamiento $ml=0{,}06$ es grande comparado con $\Jp$. Por eso una aceleración del carro produce una aceleración angular importante, y eso es lo que permite controlar la varilla actuando solo sobre el carro.
+\end{ejemplo}
+
+\section{Fricción, topes y actuador}
+
+\paragraph{Fricción del carro.} Se combinan una componente viscosa y una de Coulomb. La de Coulomb se suaviza con una tangente hiperbólica para evitar la discontinuidad en $\xd=0$:
+\begin{equation}
+  F_f(\xd) = b_c\,\xd + F_c\tanh\!\left(\xd/v_\varepsilon\right),
+\end{equation}
+con $b_c=\SI{0.5}{N.s/m}$, $F_c=\SI{0.2}{N}$ y $v_\varepsilon=\SI{0.01}{m/s}$. En el pivote solo hay fricción viscosa, $b_p=\SI{0.002}{N.m.s/rad}$.
+
+\paragraph{Topes del raíl.} Si $|x|>x_{\lim}$, aparece una fuerza de tipo muelle--amortiguador:
+\begin{equation}
+  F_w = -k_w\big(x\mp x_{\lim}\big) - b_w\xd,\qquad k_w=\SI{1e4}{N/m},\ b_w=\SI{50}{N.s/m}.
+\end{equation}
+
+\paragraph{Actuador.} El actuador real (amplificador más motor) se modela como un sistema de primer orden seguido de saturación:
+\begin{equation}
+  \frac{F_{\text{act}}(s)}{F_{\text{cmd}}(s)} = \frac{1}{\tau_a s+1},\qquad \tau_a=\SI{10}{ms},\qquad |F_{\text{act}}|\le F_{\max}=\SI{15}{N}.
+\end{equation}
+
+\begin{nota}
+Si se quiere modelar un motor de corriente continua con correa dentada, basta con sustituir este bloque por $F=\frac{k_t}{R_a r_p}\left(V-\frac{k_e}{r_p}\xd\right)$, donde $r_p$ es el radio de la polea. El término $-\frac{k_tk_e}{R_ar_p^2}\xd$ actúa como una fricción viscosa adicional (fuerza contraelectromotriz), así que el resto del manual sigue siendo válido cambiando $b_c$.
+\end{nota}
+
+\section{Puntos de equilibrio}
+
+Con $F=F_d=0$, los equilibrios cumplen $\xd=\thd=0$ y $\sin\theta=0$:
+\begin{itemize}
+  \item $\theta=0$ (varilla arriba): equilibrio \textbf{inestable}. Es el objetivo de los modos LQR, PID y \emph{swing-up}.
+  \item $\theta=\pi$ (varilla colgando): equilibrio \textbf{estable}, aunque poco amortiguado. Es el punto de trabajo del modo grúa.
+\end{itemize}
+En ambos casos, la posición $x$ es arbitraria: el sistema es invariante a traslaciones horizontales. Esto tiene consecuencias en el análisis lineal (un polo en el origen) y en el seguimiento de referencias (sección~\ref{sec:seguimiento}).
+
+\section{Energía del péndulo}
+
+La energía mecánica de la varilla \emph{respecto a un sistema de referencia que se mueve con el carro} se usará en el \emph{swing-up}. La definimos de modo que valga cero con la varilla en reposo arriba:
+\begin{equation}
+  E = \tfrac12\Jp\thd^2 + mgl(\cos\theta-1).
+  \label{eq:energia}
+\end{equation}
+Colgando en reposo vale $E=-2mgl=\SI{-1.18}{J}$. Derivando y sustituyendo~\eqref{eq:el2} con $F_d=0$, queda
+\begin{equation}
+  \dot E = \Jp\thd\thdd - mgl\sin\theta\,\thd = -ml\cos\theta\,\thd\,\xdd - b_p\thd^2 .
+  \label{eq:Edot}
+\end{equation}
+Es decir, \textbf{la aceleración del carro es la entrada que cambia la energía de la varilla}. Este resultado es la base de la ley de \emph{swing-up} de la sección~\ref{sec:swingup}.

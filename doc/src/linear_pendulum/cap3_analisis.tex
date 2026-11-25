@@ -1,0 +1,151 @@
+\chapter{Linealización y análisis}
+\label{cap:analisis}
+
+\section{Linealización en torno a un equilibrio}
+
+Sea $\theta_0\in\{0,\pi\}$ y $c_0=\cos\theta_0=\pm1$. Para desviaciones pequeñas $\varphi=\theta-\theta_0$ se cumple que $\sin\theta\approx c_0\varphi$, que $\cos\theta\approx c_0$ y que los términos $\thd^2$ son de segundo orden. Además se desprecia la fricción de Coulomb, que no es diferenciable en $\xd=0$. Con estas aproximaciones, el sistema~\eqref{eq:matricial} queda
+\begin{equation}
+\begin{bmatrix} M+m & mlc_0\\ mlc_0 & \Jp\end{bmatrix}
+\begin{bmatrix}\xdd\\ \ddot\varphi\end{bmatrix}
+=
+\begin{bmatrix} F - b_c\xd\\ mglc_0\,\varphi - b_p\dot\varphi\end{bmatrix} .
+\end{equation}
+Con $D=(M+m)\Jp-m^2l^2$ (que no depende de $c_0$, porque $c_0^2=1$), al invertir se obtiene
+\begin{align}
+\xdd &= \frac{1}{D}\Big[\Jp(F-b_c\xd) - mlc_0\,(mglc_0\varphi - b_p\dot\varphi)\Big],\\
+\ddot\varphi &= \frac{1}{D}\Big[-mlc_0(F-b_c\xd) + (M+m)(mglc_0\varphi - b_p\dot\varphi)\Big].
+\end{align}
+En forma de estado, con $\vect{s}=[x,\ \xd,\ \varphi,\ \dot\varphi]^\top$:
+\begin{equation}
+A=\frac1D\begin{bmatrix}
+0 & D & 0 & 0\\
+0 & -\Jp b_c & -m^2gl^2 & mlc_0b_p\\
+0 & 0 & 0 & D\\
+0 & mlc_0b_c & (M+m)mglc_0 & -(M+m)b_p
+\end{bmatrix},\qquad
+B=\frac1D\begin{bmatrix}0\\ \Jp\\ 0\\ -mlc_0\end{bmatrix},
+\label{eq:AB}
+\end{equation}
+y como solo se miden posiciones,
+\begin{equation}
+C=\begin{bmatrix}1&0&0&0\\0&0&1&0\end{bmatrix},\qquad D_{yu}=\vect{0}.
+\end{equation}
+
+\begin{ejemplo}{Matrices numéricas (función \code{cp\_linearize})}
+Con los parámetros por defecto, $D=\num{0.0132}$. \textbf{Arriba} ($\theta_0=0$):
+\[
+A_\uparrow=\begin{bmatrix}
+0&1&0&0\\ 0&-0{,}909&-2{,}676&0{,}009\\ 0&0&0&1\\ 0&2{,}273&31{,}21&-0{,}106\end{bmatrix},\qquad
+B_\uparrow=\begin{bmatrix}0\\1{,}818\\0\\-4{,}545\end{bmatrix}.
+\]
+\textbf{Abajo} ($\theta_0=\pi$) cambian de signo los términos con $c_0$:
+\[
+A_\downarrow=\begin{bmatrix}
+0&1&0&0\\ 0&-0{,}909&-2{,}676&-0{,}009\\ 0&0&0&1\\ 0&-2{,}273&-31{,}21&-0{,}106\end{bmatrix},\qquad
+B_\downarrow=\begin{bmatrix}0\\1{,}818\\0\\4{,}545\end{bmatrix}.
+\]
+Comprobación en MATLAB: \code{[A,B,C,D] = cp\_linearize(cp\_params(), 0)}.
+\end{ejemplo}
+
+\section{Polos en lazo abierto}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Equilibrio & Polos (rad/s) & Interpretación\\
+\midrule
+Arriba & $0,\ -0{,}711,\ -5{,}754,\ \mathbf{+5{,}450}$ & polo inestable: la caída tiene $\tau=\SI{0.18}{s}$\\
+Abajo & $0,\ -0{,}717,\ -0{,}149\pm j\,5{,}573$ & oscilación a \SI{0.89}{Hz} con $\zeta=0{,}027$\\
+\bottomrule
+\end{tabular}
+\caption{Polos del modelo lineal.}
+\label{tab:polos}
+\end{table}
+
+\begin{itemize}
+  \item El \textbf{polo en el origen} refleja la invariancia a traslaciones: si se desplaza el carro y se deja quieto, no vuelve. El polo en $-0{,}71$ procede de la fricción viscosa del carro ($\approx b_c/(M+m)$).
+  \item Sin fricción, los polos del péndulo arriba serían $\pm\sqrt{(M+m)mgl/D}=\pm\SI{5.59}{rad/s}$. La constante de tiempo de la caída, $1/5{,}45\approx\SI{0.18}{s}$, fija el ancho de banda mínimo del lazo de control: el controlador tiene que ser bastante más rápido que eso.
+  \item Abajo, la frecuencia natural ($\SI{5.57}{rad/s}$) es \emph{mayor} que la de la varilla con el pivote fijo, $\omega_0=\sqrt{mgl/\Jp}=\SI{4.95}{rad/s}$. El motivo es que el carro libre retrocede al oscilar la varilla, lo que acorta la longitud equivalente del péndulo.
+\end{itemize}
+
+\section{Funciones de transferencia y fase no mínima}
+\label{sec:fnm}
+
+Con el equilibrio de arriba y $F$ como entrada:
+\begin{align}
+G_x(s)=\frac{X(s)}{F(s)} &= \frac{1{,}818\,s^2+0{,}152\,s-44{,}59}{s\,(s^3+1{,}015\,s^2-31{,}14\,s-22{,}30)},\\[2pt]
+G_\theta(s)=\frac{\Theta(s)}{F(s)} &= \frac{-4{,}545\,s}{s^3+1{,}015\,s^2-31{,}14\,s-22{,}30}.
+\end{align}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[manual,width=0.75\linewidth,height=5.2cm,xlabel={$\mathrm{Re}(s)$},ylabel={$\mathrm{Im}(s)$},
+  xmin=-7,xmax=7,ymin=-2,ymax=2,legend pos=north west,axis lines=middle,
+  xlabel style={at={(ticklabel* cs:1)},anchor=north east},ylabel style={at={(ticklabel* cs:1)},anchor=south east}]
+\addplot[only marks,mark=x,mark size=5pt,very thick,c2] coordinates {(0,0) (-0.711,0) (-5.754,0) (5.450,0)};
+\addplot[only marks,mark=o,mark size=4pt,very thick,c1] coordinates {(-4.994,0) (4.911,0)};
+\legend{polos,ceros de $G_x$}
+\node[c2,above,font=\footnotesize] at (axis cs:5.45,0.15) {$+5{,}45$};
+\node[c1,below,font=\footnotesize] at (axis cs:4.91,-0.2) {$+4{,}91$};
+\end{axis}
+\end{tikzpicture}
+\caption{Mapa de polos y ceros del péndulo arriba (entrada $F$, salida $x$). $G_x$ tiene un cero en el semiplano derecho, muy cerca del polo inestable.}
+\label{fig:pz}
+\end{figure}
+
+$G_x$ tiene un cero real positivo en $z=+4{,}91$. Sin fricción, ese cero estaría exactamente en $+\sqrt{mgl/\Jp}=\omega_0$. Esto tiene dos consecuencias:
+
+\begin{enumerate}
+  \item \textbf{Respuesta inversa.} Para llevar el carro a la derecha con la varilla en equilibrio, primero hay que inclinar la varilla hacia la derecha. Y para eso el carro tiene que moverse antes hacia la \emph{izquierda}. Cualquier controlador estabilizante lo hará, como se aprecia en la figura~\ref{fig:lqrstep}.
+  \item \textbf{Límite de prestaciones.} Un cero en el semiplano derecho a frecuencia $z$ limita el ancho de banda alcanzable en $x$ a algo del orden de $z/2$. Además, el polo inestable en $p=5{,}45$ exige un ancho de banda mayor que $2p$ en el lazo del ángulo. Como $z$ y $p$ están tan cerca, el problema es intrínsecamente delicado; por eso el carro sigue con retraso las referencias rápidas.
+\end{enumerate}
+
+En $G_\theta$, el cero en el origen se cancela con el polo de traslación. Por eso, \textbf{midiendo solo $\theta$ no se puede saber dónde está el carro}, como confirma el análisis de observabilidad.
+
+\section{Controlabilidad y observabilidad}
+
+La matriz de controlabilidad $\mathcal{C}=[B\ AB\ A^2B\ A^3B]$ tiene rango~4, con número de condición $\kappa(\mathcal C)\approx 270$. Por tanto, el sistema es completamente controlable con una sola entrada $F$, aunque esté subactuado.
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lcl@{}}
+\toprule
+Salidas medidas & $\operatorname{rango}\mathcal{O}$ & Conclusión\\
+\midrule
+$x$ y $\theta$ & 4 & observable (configuración del banco)\\
+solo $x$ & 4 & observable: $\theta$ se deduce de cómo reacciona el carro\\
+solo $\theta$ & 3 & \textbf{no observable}: la posición del carro queda indeterminada\\
+\bottomrule
+\end{tabular}
+\caption{Observabilidad según los sensores disponibles.}
+\end{table}
+
+\begin{aviso}
+Aunque bastaría con medir $x$, en la práctica se miden $x$ y $\theta$: estimar el ángulo a partir de $x$ es muy sensible a errores de modelo. Las velocidades $\xd$ y $\thd$ no se miden y hay que estimarlas, ya sea con derivadas filtradas (capítulo~\ref{cap:sensores}) o con un observador (práctica~10).
+\end{aviso}
+
+\section{Respuesta en frecuencia (equilibrio abajo)}
+
+La figura~\ref{fig:bode} muestra el diagrama de Bode del modelo colgante, que es estable y por tanto identificable en lazo abierto (práctica~2). Destacan la resonancia a \SI{0.89}{Hz}, muy aguda (factor de calidad $1/2\zeta\approx19$, es decir, unos \SI{25}{dB}), y la antirresonancia de $G_x$ a la frecuencia $\omega_0/2\pi=\SI{0.79}{Hz}$. A esa frecuencia, al empujar el carro la varilla oscila de forma que «absorbe» el movimiento.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=1 by 2,vertical sep=0.5cm,xticklabels at=edge bottom},
+  manual,height=4.2cm,xmode=log,xmin=0.05,xmax=10]
+\nextgroupplot[ylabel={Magnitud [dB]},legend pos=south west]
+\addplot[c1] table[x=f,y=mag]{data/bode_dn_x.dat};
+\addplot[c2] table[x=f,y=mag]{data/bode_dn_th.dat};
+\legend{$X/F$ [m/N],$\Theta/F$ [rad/N]}
+\draw[dashed,gray] (axis cs:0.887,-120) -- (axis cs:0.887,40);
+\draw[dashed,gray] (axis cs:0.788,-120) -- (axis cs:0.788,40);
+\nextgroupplot[ylabel={Fase [$^\circ$]},xlabel={Frecuencia [Hz]}]
+\addplot[c1] table[x=f,y=ph]{data/bode_dn_x.dat};
+\addplot[c2] table[x=f,y=ph]{data/bode_dn_th.dat};
+\end{groupplot}
+\end{tikzpicture}
+\caption{Bode del carro-péndulo colgante. Líneas discontinuas: antirresonancia de $X/F$ (\SI{0.79}{Hz}) y resonancia (\SI{0.89}{Hz}).}
+\label{fig:bode}
+\end{figure}

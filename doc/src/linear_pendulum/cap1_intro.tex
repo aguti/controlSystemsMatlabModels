@@ -1,0 +1,122 @@
+\chapter{Introducción}
+\label{cap:intro}
+
+El \emph{péndulo invertido sobre carro} (carro-péndulo o péndulo lineal) es el banco de pruebas clásico de la teoría de control. Reúne en un sistema pequeño casi todas las dificultades que aparecen en la práctica: un equilibrio inestable, una no linealidad fuerte, un sistema subactuado (dos grados de libertad y una sola entrada), un cero de fase no mínima, saturación del actuador, límites físicos de recorrido y sensores que solo miden posiciones.
+
+Este manual acompaña al paquete de simulación \code{linear\_pendulum} y está organizado en dos partes:
+
+\begin{itemize}
+  \item \textbf{Parte teórica} (capítulos~\ref{cap:modelo}--\ref{cap:control}). Se deriva el modelo, se linealiza, se analizan sus propiedades (estabilidad, controlabilidad, observabilidad, fase no mínima), se estudia la instrumentación y se desarrollan cuatro estrategias de control: LQR, PID+PD, \emph{swing-up} por energía y grúa con anti-balanceo.
+  \item \textbf{Parte práctica} (capítulos~\ref{cap:simulink}--\ref{cap:practicas}). Se describe el modelo de Simulink, la interfaz de código \code{CartPole} y la interfaz gráfica \code{cp\_gui}. El manual termina con diez prácticas guiadas.
+\end{itemize}
+
+Todas las figuras de resultados de este manual se han obtenido simulando el modelo no lineal completo, con actuador, cuantización de los encoders y controlador discreto, y usando los parámetros por defecto de \code{cp\_params.m}. Por tanto, deberían reproducirse con el software tal y como se entrega.
+
+\section{El sistema físico}
+
+La figura~\ref{fig:sistema} muestra el montaje. Un carro de masa $M$ se desplaza sobre un raíl horizontal de longitud útil $2x_{\lim}=\SI{1.6}{m}$. Un actuador lineal (por ejemplo, un motor con correa o un motor lineal) ejerce sobre él una fuerza $F$. En el carro va articulada una varilla uniforme de masa $m$ y longitud $L_p$, que gira libremente en el plano vertical. Dos encoders miden la posición del carro $x$ y el ángulo de la varilla $\theta$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.5,>=Latex]
+  % raíl
+  \fill[pattern=north east lines,pattern color=gray!60] (-4,-0.62) rectangle (4,-0.5);
+  \draw[thick] (-4,-0.5) -- (4,-0.5);
+  \draw[line width=3pt] (-3.7,-0.5) -- (-3.7,0.1) node[above,font=\small]{tope};
+  \draw[line width=3pt] (3.7,-0.5) -- (3.7,0.1) node[above,font=\small]{tope};
+  % carro
+  \draw[fill=c1!60,rounded corners=2pt] (-0.7,-0.4) rectangle (0.7,0.3);
+  \node[font=\small] at (0,-0.1) {$M$};
+  \draw[fill=gray] (-0.42,-0.45) circle (0.06); \draw[fill=gray] (0.42,-0.45) circle (0.06);
+  % varilla
+  \def\ang{25}
+  \draw[line width=5pt,c2!80,line cap=round] (0,0.15) -- ++(90-\ang:3.0) coordinate (tip);
+  \coordinate (piv) at (0,0.15);
+  \path (piv) -- (tip) coordinate[pos=0.5] (cm);
+  \fill[black] (cm) circle (0.07);
+  \node[right=3pt,font=\small] at (cm) {CdM, $m$, $J$};
+  \draw[fill=white] (piv) circle (0.06);
+  % ejes y ángulo
+  \draw[dashed,gray] (piv) -- ++(0,3.1) node[above,black,font=\small]{vertical};
+  \draw[->,thick] (piv) ++(0,1.3) arc (90:90-\ang:1.3);
+  \node[font=\small] at ($(piv)+(0.28,1.45)$) {$\theta$};
+  % cotas l y Lp
+  \draw[<->,gray!80!black] ($(piv)+(-0.25,0)+(180-\ang:0)$) -- ++(90-\ang:1.5) node[midway,left,font=\small]{$l$};
+  \draw[<->] ($(piv)+(0.35,-0.15)$) ++(90-\ang:0) -- ++(90-\ang:3.0);
+  \node[font=\small,right] at ($(piv)!0.75!(tip)+(0.35,-0.1)$) {$L_p=2l$};
+  % fuerzas
+  \draw[->,line width=1.6pt,c4] (-2.0,-0.05) -- (-0.75,-0.05) node[midway,above]{$F$};
+  \draw[->,line width=1.4pt,c5!70!black] ($(tip)+(-1.1,0)$) -- ($(tip)+(-0.12,0)$) node[pos=0.3,above]{$F_d$};
+  \draw[->,thick,gray!70!black] ($(cm)+(0.9,0)$) -- ++(0,-0.7) node[right,font=\small]{$m g$};
+  % coordenada x
+  \draw[->,thick] (-3.6,-1.0) -- (3.6,-1.0) node[right]{$x$};
+  \draw (0,-0.95) -- (0,-1.05) node[below,font=\small]{$x$};
+  \draw (-3.7,-0.95) -- (-3.7,-1.05) node[below,font=\small]{$-x_{\lim}$};
+  \draw (3.7,-0.95) -- (3.7,-1.05) node[below,font=\small]{$x_{\lim}$};
+  % encoders
+  \node[draw,circle,fill=yellow!40,inner sep=1pt,font=\scriptsize] at (0.45,0.05) {E$_\theta$};
+  \node[draw,rectangle,fill=yellow!40,inner sep=2pt,font=\scriptsize,anchor=north] at (-2.6,-0.62) {Encoder lineal E$_x$};
+\end{tikzpicture}
+\caption{Esquema del péndulo lineal y convención de signos. $\theta=0$ corresponde a la varilla vertical hacia arriba; $\theta>0$ indica inclinación hacia $+x$.}
+\label{fig:sistema}
+\end{figure}
+
+\section{Convenciones}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Símbolo & Significado & Unidad\\
+\midrule
+$x$ & posición del carro (positiva a la derecha) & m\\
+$\theta$ & ángulo de la varilla respecto a la vertical superior; $\theta=\pi$ colgando & rad\\
+$F$ & fuerza aplicada por el actuador sobre el carro & N\\
+$F_d$ & fuerza de perturbación horizontal en la punta de la varilla & N\\
+$\vect{s}$ & estado $[x,\ \xd,\ \theta,\ \thd]^\top$ & --\\
+$\vect{y}$ & medida $[x_m,\ \theta_m]^\top$ (solo posiciones) & m, rad\\
+$r$ & referencia de posición del carro & m\\
+\bottomrule
+\end{tabular}
+\caption{Convenciones de signos y variables.}
+\end{table}
+
+\section{Contenido del paquete de software}
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Archivo & Función\\
+\midrule
+\code{cp\_params.m} & Todos los parámetros físicos, de sensores, temporales y de los controladores.\\
+\code{cp\_linearize.m} & Matrices $(A,B,C,D)$ en torno a $\theta_0=0$ o $\theta_0=\pi$.\\
+\code{cp\_lqr.m}, \code{cp\_design.m} & Cálculo de las ganancias LQR (con o sin Control System Toolbox).\\
+\code{cp\_plant\_block.m} & Dinámica no lineal (código del bloque \emph{MATLAB Function} de la planta).\\
+\code{cp\_controller\_block.m} & Controlador discreto con 5 modos (código del bloque del controlador).\\
+\code{cp\_ref\_block.m} & Generador de referencias.\\
+\code{cp\_build\_model.m} & Genera el modelo \code{cartpole\_sim.slx} mediante un script.\\
+\code{CartPole.m} & Clase con la interfaz de código: ensayos por lotes y control en vivo.\\
+\code{cp\_gui.m} & Interfaz gráfica en vivo.\\
+\code{cp\_draw.m}, \code{cp\_animate.m}, \code{cp\_plot\_results.m} & Animación y gráficas.\\
+\code{examples.m} & Recorrido guiado por secciones.\\
+\code{python\_reference\_sim.py} & Réplica independiente en Python usada para validar el modelo.\\
+\code{validation/} & Scripts de validación cruzada Simulink--Python (apéndice~\ref{cap:validacion}).\\
+\bottomrule
+\end{tabularx}
+\caption{Archivos del paquete \code{linear\_pendulum}.}
+\label{tab:archivos}
+\end{table}
+
+\section{Requisitos y puesta en marcha}
+
+Se necesita MATLAB y Simulink R2020b o posterior. La Control System Toolbox es opcional: si no está instalada, \code{cp\_lqr} resuelve la ecuación de Riccati por el método del Hamiltoniano (sección~\ref{sec:hamiltoniano}).
+
+\begin{lstlisting}[caption={Primeros pasos.}]
+cd src/linear_pendulum
+cp_build_model                 % crea cartpole_sim.slx (solo la primera vez)
+cp = CartPole();               % interfaz de código
+res = cp.run(6);               % ensayo LQR por defecto (theta0 = 0.1 rad)
+cp_plot_results(res); cp.animate(res);
+cp_gui(cp);                    % interfaz gráfica en vivo
+\end{lstlisting}

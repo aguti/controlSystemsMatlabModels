@@ -1,0 +1,121 @@
+\chapter{Tabla de parámetros}
+\label{ap:param}
+
+\begin{table}[H]
+\centering\footnotesize
+\begin{tabularx}{\linewidth}{@{}p{4.1cm}p{3.4cm}p{2.1cm}X@{}}
+\toprule
+Campo de \code{P} & Valor & Unidad & Descripción\\
+\midrule
+\multicolumn{4}{@{}l}{\textit{Mecánica}}\\
+\code{M}, \code{m} & 0,5 / 0,2 & kg & masa del carro / de la varilla\\
+\code{Lp}, \code{l} & 0,6 / 0,3 & m & longitud de la varilla / distancia al CdM\\
+\code{J} & 0,006 & kg\,m$^2$ & inercia de la varilla (CdM), $mL_p^2/12$\\
+\code{bc}, \code{Fc}, \code{v\_eps} & 0,5 / 0,2 / 0,01 & N\,s/m, N, m/s & fricción viscosa y de Coulomb del carro\\
+\code{bp} & 0,002 & N\,m\,s/rad & fricción del pivote\\
+\code{x\_lim}, \code{k\_wall}, \code{b\_wall} & 0,8 / $10^4$ / 50 & m, N/m, N\,s/m & raíl y topes\\
+\multicolumn{4}{@{}l}{\textit{Actuador y sensores}}\\
+\code{Fmax}, \code{tau\_a} & 15 / 0,01 & N, s & saturación y dinámica del actuador\\
+\code{res\_x}, \code{res\_th} & $10^{-4}$ / $2\pi/4096$ & m, rad & resolución de los encoders\\
+\code{noise\_on}, \code{noise\_x}, \code{noise\_th} & 0 / $10^{-4}$ / $10^{-3}$ & --, m, rad & ruido de medida\\
+\code{Ts}, \code{h}, \code{tau\_v} & 0,002 / 0,001 / 0,01 & s & muestreo, paso del solver, filtro derivativo\\
+\multicolumn{4}{@{}l}{\textit{Referencia y seguridad}}\\
+\code{x\_ref\_max}, \code{ref\_rate} & 0,6 / 1 & m, m/s & saturación y pendiente de la referencia\\
+\code{x\_safe} & 0,78 & m & umbral del corte de seguridad\\
+\code{x0} & $[0,0,0{,}1,0]^\top$ & -- & estado inicial\\
+\multicolumn{4}{@{}l}{\textit{Controladores}}\\
+\code{Qup}, \code{Rup} & diag(50,1,200,1) / 0,1 & -- & LQR arriba\\
+\code{Qdn}, \code{Rdn} & diag(50,1,20,1) / 0,1 & -- & LQR grúa\\
+\code{k\_E}, \code{a\_max} & 5 / 3 & --, m/s$^2$ & \emph{swing-up}\\
+\code{kx\_sw}, \code{kv\_sw} & 8 / 1 & -- & recentrado durante el \emph{swing-up}\\
+\code{th\_catch}, \code{th\_release} & 0,35 / 0,8 & rad & conmutación con histéresis\\
+\code{Kp\_th}, \code{Ki\_th}, \code{Kd\_th} & 60 / 0 / 8 & -- & PID del ángulo\\
+\code{Kp\_x}, \code{Kd\_x}, \code{I\_max} & 10 / 10 / 1 & -- & PD del carro y anti-windup\\
+\bottomrule
+\end{tabularx}
+\caption{Parámetros por defecto (\code{cp\_params.m}).}
+\end{table}
+
+\chapter{Validación del modelo Simulink}
+\label{cap:validacion}
+
+Las gráficas de resultados de este manual se generaron con la réplica en Python del modelo (\code{python\_reference\_sim.py}). Para comprobar que representan fielmente al modelo Simulink, los mismos escenarios se ejecutaron en \code{cartpole\_sim.slx} (MATLAB R2025b, ode4, $h=\SI{1}{ms}$) y se compararon muestra a muestra. La réplica no modela el limitador de pendiente de la referencia, así que en los escenarios con escalón se desactivó (\code{cp.setParamRaw('ref\_rate', 1e6)}).
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}lrrX@{}}
+\toprule
+Escenario & RMS $\Delta x$ [mm] & RMS $\Delta\theta$ [$^\circ$] & Métrica (Python / Simulink)\\
+\midrule
+LQR desde $\theta_0=\SI{0.15}{rad}$ & 0,12 & 0,013 & asentamiento a $0{,}5^\circ$: 1,67 / 1,67 s; $F_{\max}$ 12,8 / 12,8 N\\
+LQR, escalón \SI{0.3}{m} & 0,32 & 0,018 & retroceso inicial 29,4 / 29,4 mm\\
+LQR, empujón \SI{1}{N}$\times$\SI{0.1}{s} & 1,34 & 0,044 & asentamiento 3,47 / 3,46 s\\
+Swing-up + LQR & 0,41 & 0,19 & captura en 5,50 / 5,50 s; $|x|_{\max}$ 0,470 / 0,470 m\\
+PID desde $\theta_0=\SI{0.1}{rad}$ & 0,11 & 0,010 & asentamiento 0,98 / 0,98 s\\
+PID, escalón \SI{0.3}{m} & 0,12 & 0,006 & retroceso inicial 20,3 / 20,3 mm\\
+Grúa con anti-balanceo & 0,17 & 0,016 & balanceo residual ($t>\SI{5}{s}$) 0,18 / 0,18$^\circ$\\
+Grúa sin anti-balanceo & 0,17 & 0,057 & balanceo residual 15,25 / 15,24$^\circ$\\
+\bottomrule
+\end{tabularx}
+\caption{Comparación entre la réplica en Python y el modelo Simulink.}
+\label{tab:validacion}
+\end{table}
+
+Las discrepancias son del orden de la resolución de los encoders, por lo que las figuras del manual son representativas del modelo Simulink. Otros resultados obtenidos directamente en Simulink:
+\begin{itemize}
+  \item \textbf{Escalón con el limitador por defecto} (\SI{1}{m/s}): el retroceso inicial baja de 29 a 19~mm y la fuerza máxima de 5,5 a 2,1~N.
+  \item \textbf{Ciclo límite}: tras el escalón, el carro oscila lentamente en torno a la referencia ($\approx\pm\SI{8}{mm}$ con LQR y $\approx\pm\SI{20}{mm}$ con PID) por la fricción de Coulomb, que ninguno de los dos controladores compensa al no tener acción integral sobre $x$.
+  \item \textbf{Seguimiento de un seno de \SI{0.2}{m} con LQR}: retraso de fase de $28^\circ$ a \SI{0.1}{Hz}, $61^\circ$ a \SI{0.2}{Hz} y $140^\circ$ a \SI{0.5}{Hz} (ganancia 0,57).
+  \item \textbf{Ruido en encoders activado}: desviación típica de $\theta$ en régimen de $0{,}08^\circ$ y de la fuerza de \SI{0.41}{N}.
+  \item \textbf{Modo en vivo}: la simulación sigue el tiempo real tras la compilación inicial; los cambios de referencia, empujones y pesos LQR se aplican durante la ejecución.
+\end{itemize}
+
+Para repetir la validación:
+\begin{lstlisting}
+cd src/linear_pendulum/validation
+run_validation                         % MATLAB: escribe results/*.csv
+!python3 compare_with_python.py        % compara con la réplica en Python
+\end{lstlisting}
+
+\chapter{Resolución de problemas}
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}p{4.8cm}X@{}}
+\toprule
+Síntoma & Causa probable y solución\\
+\midrule
+\code{cp\_build\_model} falla en \code{setScript} & Versión de Stateflow sin la propiedad \code{Script}: actualizar a R2020b o posterior.\\
+\emph{Undefined variable P} al pulsar \emph{Run} en Simulink & Ejecutar \code{CartPole()} o \code{P = cp\_design(cp\_params())}. La \code{InitFcn} lo hace sola si el modelo se ha generado con el script.\\
+La simulación en vivo va más rápida que el tiempo real & La versión no soporta \emph{pacing} (anterior a R2018a). Reducir la carga o usar \code{run()}.\\
+Error de tamaño al cambiar \code{P} en vivo & Los parámetros ajustables no pueden cambiar de dimensión durante la simulación. Hay que parar, cambiar y volver a arrancar.\\
+El LQR no estabiliza y aparece «SEGURIDAD» & Ángulo inicial demasiado grande, empujón excesivo o $K$ mal calculado. Revisar \code{cp.P.K\_up} y deshabilitar y rehabilitar el control.\\
+El \emph{swing-up} no captura y el carro golpea los topes & Bajar \code{a\_max} o \code{k\_E}, o subir \code{kx\_sw}.\\
+\code{ref\_ext}, \code{u\_ext} o \code{d\_ext} no cambian en vivo & Los bloques \emph{From Workspace} leen la variable al arrancar. Para cambios en vivo, usar \code{setRef}, \code{setForce} o \code{push}.\\
+La GUI se congela con \emph{PacingRate} alto & Bajar \code{TelemetryRate} o la velocidad de simulación.\\
+\bottomrule
+\end{tabularx}
+\caption{Problemas habituales.}
+\end{table}
+
+\chapter{Resumen de fórmulas}
+
+\begin{align*}
+&\text{Modelo:} && \begin{bmatrix} M+m & ml\cos\theta\\ ml\cos\theta & \Jp\end{bmatrix}\begin{bmatrix}\xdd\\ \thdd\end{bmatrix}=\begin{bmatrix} F - F_f + ml\sin\theta\,\thd^2\\ mgl\sin\theta - b_p\thd\end{bmatrix}\\
+&\text{Polo inestable (sin fricción):} && p=\sqrt{\frac{(M+m)mgl}{(M+m)\Jp-m^2l^2}}\\
+&\text{Cero de fase no mínima de } X/F: && z=\sqrt{mgl/\Jp}\\
+&\text{Energía:} && E=\tfrac12\Jp\thd^2+mgl(\cos\theta-1),\qquad \dot E=-ml\cos\theta\,\thd\,\xdd-b_p\thd^2\\
+&\text{Swing-up:} && \xdd^\ast=\operatorname{sat}\big(k_EE\thd\cos\theta-k_x(x-r)-k_v\xd\big)\\
+&\text{LQR:} && K=R^{-1}B^\top X,\quad A^\top X+XA-XBR^{-1}B^\top X+Q=0\\
+&\text{Derivada filtrada:} && \hat v_k=a\hat v_{k-1}+(1-a)(y_k-y_{k-1})/T_s,\quad a=e^{-T_s/\tau_v}
+\end{align*}
+
+\begin{thebibliography}{9}
+\bibitem{astrom2000} K.~J.~Åström y K.~Furuta, «Swinging up a pendulum by energy control», \emph{Automatica}, 36(2), pp.~287--295, 2000.
+\bibitem{ogata} K.~Ogata, \emph{Ingeniería de control moderna}, 5.ª ed., Pearson, 2010.
+\bibitem{franklin} G.~F.~Franklin, J.~D.~Powell y A.~Emami-Naeini, \emph{Feedback Control of Dynamic Systems}, 8.ª ed., Pearson, 2019.
+\bibitem{anderson} B.~D.~O.~Anderson y J.~B.~Moore, \emph{Optimal Control: Linear Quadratic Methods}, Prentice Hall, 1990.
+\bibitem{astromfb} K.~J.~Åström y R.~M.~Murray, \emph{Feedback Systems: An Introduction for Scientists and Engineers}, 2.ª ed., Princeton University Press, 2021.
+\bibitem{skogestad} S.~Skogestad e I.~Postlethwaite, \emph{Multivariable Feedback Control: Analysis and Design}, 2.ª ed., Wiley, 2005 (limitaciones por ceros en el semiplano derecho).
+\bibitem{singer} N.~C.~Singer y W.~P.~Seering, «Preshaping command inputs to reduce system vibration», \emph{ASME J. Dyn. Sys. Meas. Control}, 112(1), pp.~76--82, 1990.
+\end{thebibliography}

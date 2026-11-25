@@ -1,0 +1,354 @@
+\chapter{Diseño de controladores}
+\label{cap:control}
+
+\section{Estructura general del lazo}
+
+Todos los modos comparten la misma estructura (figura~\ref{fig:lazo}). La referencia $r$ pasa por un limitador de pendiente (\SI{1}{m/s}) y se satura a $\pm\SI{0.6}{m}$. El controlador discreto recibe solo las posiciones medidas, estima las velocidades y calcula $F_{\text{cmd}}$. A esa fuerza se le suman la fuerza manual y una señal externa opcional $u_{\text{ext}}$, y el resultado pasa por el actuador saturado.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>=Latex,node distance=0.7cm and 0.75cm,
+  b/.style={draw,thick,rounded corners=2pt,minimum height=1cm,minimum width=1.5cm,align=center,font=\small,fill=#1},
+  b/.default=c1!8,
+  s/.style={draw,circle,thick,inner sep=1.5pt}]
+\node (r) {$r$};
+\node[b=gray!10,right=of r] (ref) {Limitador\\pendiente\\+ sat.};
+\node[b=c4!10,right=1.0cm of ref,minimum height=1.8cm] (ctrl) {Estimador\\$\hat{\vect s}$\\+\\Ley de\\control};
+\node[s,right=of ctrl] (sum) {$+$};
+\node[b=c2!10,right=of sum] (act) {$\dfrac{1}{\tau_a s+1}$\\ sat. $\pm F_{\max}$};
+\node[b=c5!10,right=of act,minimum height=1.8cm] (pl) {Carro-\\péndulo\\no lineal};
+\node[right=0.8cm of pl] (out) {$\vect s$};
+\node[b=yellow!15,below=1.0cm of act] (sen) {Encoders\\$\mathcal Q_q$, ZOH};
+\node[above=0.6cm of sum,font=\small] (uext) {$u_{\text{man}}+u_{\text{ext}}$};
+\node[above=0.6cm of pl,font=\small] (fd) {$F_d$};
+\draw[->] (r) -- (ref); \draw[->] (ref) -- node[above,font=\small]{$r'$} (ctrl);
+\draw[->] (ctrl) -- node[above,font=\small]{$F_c$} (sum);
+\draw[->] (uext) -- (sum);
+\draw[->] (sum) -- node[above,font=\small]{$F_{\text{cmd}}$} (act); \draw[->] (act) -- node[above,font=\small]{$F$} (pl);
+\draw[->] (fd) -- (pl);
+\draw[->] (pl) -- (out);
+\draw[->] ($(pl.east)+(0.4,0)$) |- (sen);
+\draw[->] (sen) -| node[pos=0.25,below,font=\small]{$\vect y_k=[x_m,\ \theta_m]$} (ctrl);
+\begin{scope}[on background layer]
+\node[draw,dashed,c4,fit=(ctrl),inner sep=6pt,label={[c4,font=\footnotesize]above:discreto, $T_s=\SI{2}{ms}$}] {};
+\end{scope}
+\end{tikzpicture}
+\caption{Lazo de control común a todos los modos.}
+\label{fig:lazo}
+\end{figure}
+
+\section{Regulador lineal cuadrático (LQR)}
+\label{sec:lqr}
+
+\subsection{Planteamiento}
+
+Dado el modelo lineal $\dot{\vect s}=A\vect s+Bu$, el LQR busca la realimentación $u=-K\vect s$ que minimiza
+\begin{equation}
+J = \int_0^\infty \left(\vect s^\top Q\,\vect s + u^\top R\,u\right)\dd t,\qquad Q=Q^\top\succeq0,\ R=R^\top\succ0 .
+\end{equation}
+Si $(A,B)$ es estabilizable y $(A,Q^{1/2})$ detectable, la solución es
+\begin{equation}
+K = R^{-1}B^\top X,
+\end{equation}
+donde $X=X^\top\succ0$ es la solución estabilizante de la \textbf{ecuación algebraica de Riccati}
+\begin{equation}
+A^\top X + XA - XBR^{-1}B^\top X + Q = 0 .
+\label{eq:are}
+\end{equation}
+El lazo cerrado $A-BK$ es siempre estable y, para una sola entrada, garantiza un margen de ganancia de $[\tfrac12,\infty)$ y un margen de fase de al menos $60^\circ$, \emph{siempre que se realimente el estado real}. En el banco, la estimación de velocidades y el retraso del actuador reducen estos márgenes.
+
+\subsection{Resolución por el método del Hamiltoniano}
+\label{sec:hamiltoniano}
+
+Cuando no se dispone de \code{lqr()}, \code{cp\_lqr.m} construye la matriz Hamiltoniana
+\begin{equation}
+\mathcal H=\begin{bmatrix} A & -BR^{-1}B^\top\\ -Q & -A^\top\end{bmatrix}\in\mathbb R^{2n\times 2n}.
+\end{equation}
+Sus autovalores son simétricos respecto al eje imaginario. Si las columnas de $\left[\begin{smallmatrix}V_1\\V_2\end{smallmatrix}\right]$ generan el subespacio invariante asociado a los $n$ autovalores estables, entonces $X=V_2V_1^{-1}$ y los autovalores estables de $\mathcal H$ son precisamente los polos del lazo cerrado.
+
+\begin{lstlisting}[caption={Resolución de Riccati sin toolboxes (extracto de \code{cp\_lqr.m}).}]
+H  = [A, -B/R*B'; -Q, -A'];
+[V, Dg] = eig(H);
+Vs = V(:, real(diag(Dg)) < 0);          % n vectores estables
+X  = real(Vs(n+1:end,:) / Vs(1:n,:));
+K  = R \ (B'*X);
+\end{lstlisting}
+
+\subsection{Elección de los pesos}
+
+Una regla de partida útil es la \emph{regla de Bryson}: $Q_{ii}=1/s_{i,\max}^2$ y $R=1/u_{\max}^2$, donde $s_{i,\max}$ y $u_{\max}$ son los valores máximos aceptables de cada variable. Después se ajusta a la vista de los resultados:
+\begin{itemize}
+  \item aumentar $Q_{\theta}$ hace el lazo del ángulo más rápido y rígido, a costa de más fuerza;
+  \item aumentar $Q_x$ hace que el carro vuelva antes a la referencia, pero con más inclinación transitoria;
+  \item aumentar $R$ suaviza la fuerza, aleja el riesgo de saturación y vuelve el sistema más lento.
+\end{itemize}
+
+\begin{ejemplo}{Diseño por defecto}
+Con $Q=\operatorname{diag}(50,1,200,1)$ y $R=0{,}1$:
+\[
+K_\uparrow = \begin{bmatrix}-22{,}36 & -19{,}55 & -84{,}23 & -14{,}27\end{bmatrix},\qquad
+\lambda(A-BK)=\{-13{,}46\pm j5{,}55,\ -1{,}70\pm j1{,}35\}.
+\]
+Se observa que $K_x=-\sqrt{Q_x/R}=-\sqrt{500}$. Es una propiedad general del LQR cuando el estado tiene un modo integrador puro sin coste cruzado (aquí, la posición del carro). El par de polos rápidos corresponde al ángulo y el lento, al carro. Los signos negativos de $K$ se explican porque, con $u=-K\vect s$, una inclinación $\theta>0$ produce $F>0$: el carro se mueve para ponerse debajo de la varilla.
+\end{ejemplo}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=1 by 3,vertical sep=0.35cm,xticklabels at=edge bottom},
+  manual,height=3.6cm,xmin=0,xmax=5]
+\nextgroupplot[ylabel={$\theta$ [$^\circ$]},legend pos=north east,legend columns=3]
+\addplot[c1] table[x=t,y=thdeg]{data/qsweep_20.dat};
+\addplot[c2] table[x=t,y=thdeg]{data/qsweep_200.dat};
+\addplot[c4] table[x=t,y=thdeg]{data/qsweep_2000.dat};
+\legend{$Q_\theta=20$,$Q_\theta=200$,$Q_\theta=2000$}
+\nextgroupplot[ylabel={$x$ [m]}]
+\addplot[c1] table[x=t,y=x]{data/qsweep_20.dat};
+\addplot[c2] table[x=t,y=x]{data/qsweep_200.dat};
+\addplot[c4] table[x=t,y=x]{data/qsweep_2000.dat};
+\nextgroupplot[ylabel={$F$ [N]},xlabel={$t$ [s]}]
+\addplot[c1] table[x=t,y=F]{data/qsweep_20.dat};
+\addplot[c2] table[x=t,y=F]{data/qsweep_200.dat};
+\addplot[c4] table[x=t,y=F]{data/qsweep_2000.dat};
+\end{groupplot}
+\end{tikzpicture}
+\caption{Efecto de $Q_\theta$ partiendo de $\theta_0=\SI{0.15}{rad}$ ($8{,}6^\circ$). Con $Q_\theta=2000$ la fuerza llega a saturar a \SI{15}{N}.}
+\label{fig:qsweep}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[manual,width=0.8\linewidth,height=6cm,xlabel={$\mathrm{Re}(\lambda)$},ylabel={$\mathrm{Im}(\lambda)$},
+  colorbar,colormap/viridis,point meta={log10(\thisrow{q})},
+  colorbar style={ylabel={$\log_{10}Q_\theta$},width=0.25cm},xmax=0]
+\addplot[scatter,only marks,mark=*,mark size=1.3pt] table[x=re,y=im]{data/lqr_locus.dat};
+\end{axis}
+\end{tikzpicture}
+\caption{Lugar de los polos del lazo cerrado LQR al variar $Q_\theta$ entre $1$ y $10^4$ ($Q_x=50$, $R=0{,}1$). El par rápido, el del ángulo, se aleja del origen; el par lento, el del carro, apenas se mueve.}
+\label{fig:locus}
+\end{figure}
+
+\subsection{Seguimiento de una referencia de posición}
+\label{sec:seguimiento}
+
+Como $x$ es un modo integrador, para cualquier $r$ constante el estado $\vect s_r=[r,0,0,0]^\top$ es un equilibrio. Basta, por tanto, con realimentar el error:
+\begin{equation}
+F = -K(\vect s-\vect s_r) = -K_x(x-r) - K_{\xd}\xd - K_\theta\theta - K_{\thd}\thd .
+\end{equation}
+En régimen permanente el error es nulo frente a escalones, salvo por la fricción de Coulomb, que deja un pequeño error. Frente a rampas o senos el carro va con retraso. La respuesta a un escalón (figura~\ref{fig:lqrstep}) muestra la \textbf{respuesta inversa} anunciada en la sección~\ref{sec:fnm}: el carro retrocede unos \SI{3}{cm} antes de avanzar.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=1 by 3,vertical sep=0.35cm,xticklabels at=edge bottom},
+  manual,height=3.5cm,xmin=0,xmax=8]
+\nextgroupplot[ylabel={$x$ [m]},legend pos=south east]
+\addplot[c1] table[x=t,y=x]{data/lqr_step.dat};
+\addplot[black,dashed,const plot] table[x=t,y=r]{data/lqr_step.dat};
+\legend{$x$,$r$}
+\draw[c2,thick,->] (axis cs:2.2,-0.12) -- (axis cs:1.25,-0.03) node[pos=0,right,font=\footnotesize]{respuesta inversa};
+\nextgroupplot[ylabel={$\theta$ [$^\circ$]}]
+\addplot[c2] table[x=t,y=thdeg]{data/lqr_step.dat};
+\nextgroupplot[ylabel={$F$ [N]},xlabel={$t$ [s]}]
+\addplot[c4] table[x=t,y=F]{data/lqr_step.dat};
+\end{groupplot}
+\end{tikzpicture}
+\caption{LQR: escalón de \SI{0.3}{m} en la referencia, sin limitador de pendiente. Para avanzar, el carro primero inclina la varilla hacia delante, retrocediendo $\approx\SI{3}{cm}$. Con el limitador por defecto (\code{P.ref\_rate} $=\SI{1}{m/s}$) el retroceso se reduce a $\approx\SI{1.9}{cm}$ (apéndice~\ref{cap:validacion}).}
+\label{fig:lqrstep}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=2 by 1,horizontal sep=1.6cm},
+  manual,width=0.5\linewidth,height=4.5cm,xmin=0,xmax=6,xlabel={$t$ [s]}]
+\nextgroupplot[ylabel={$\theta$ [$^\circ$] / $x$ [cm]},legend pos=north east,title={\small Desde $\theta_0=0{,}15$ rad}]
+\addplot[c2] table[x=t,y=thdeg]{data/lqr_ic.dat};
+\addplot[c1] table[x=t,y expr=100*\thisrow{x}]{data/lqr_ic.dat};
+\legend{$\theta$,$x$}
+\nextgroupplot[ylabel={$\theta$ [$^\circ$] / $x$ [cm]},title={\small Empujón de \SI{1}{N}$\times$\SI{0.1}{s} en $t=1$ s}]
+\addplot[c2] table[x=t,y=thdeg]{data/lqr_push.dat};
+\addplot[c1] table[x=t,y expr=100*\thisrow{x}]{data/lqr_push.dat};
+\end{groupplot}
+\end{tikzpicture}
+\caption{LQR: recuperación desde una condición inicial (asentamiento a $0{,}5^\circ$ en \SI{1.7}{s}, $F_{\max}=\SI{12.7}{N}$) y rechazo de un empujón en la punta (el carro recorre hasta \SI{37}{cm}).}
+\label{fig:lqric}
+\end{figure}
+
+\section{Control PID del ángulo con PD del carro}
+\label{sec:pid}
+
+Es la estructura más intuitiva: un PID que mantiene la varilla vertical, más un lazo PD que devuelve el carro a la referencia:
+\begin{equation}
+F = \underbrace{K_{p\theta}\,\theta + K_{i\theta}\!\int\!\theta\,\dd t + K_{d\theta}\,\thd}_{\text{equilibrio}}
+  \;+\; \underbrace{K_{px}(x-r) + K_{dx}\,\xd}_{\text{posición del carro}} .
+\label{eq:pid}
+\end{equation}
+
+\begin{aviso}[title={¿Por qué $K_{px}>0$?}]
+Parece contraintuitivo: si el carro está a la derecha de la referencia ($x-r>0$), el término de posición lo empuja \emph{todavía más} a la derecha. Es consecuencia de la fase no mínima. Para volver a la izquierda, la varilla tiene que inclinarse primero hacia la izquierda, y eso se consigue moviendo el carro a la derecha. Si se cambia el signo de $K_{px}$, el lazo se vuelve inestable.
+\end{aviso}
+
+Sin la parte integral, \eqref{eq:pid} es una realimentación de estado con $K_{\text{PID}}=-[K_{px},\ K_{dx},\ K_{p\theta},\ K_{d\theta}]$. Esto permite comparar directamente con el LQR. Con los valores por defecto, $(K_{px},K_{dx},K_{p\theta},K_{d\theta})=(10,10,60,8)$, los polos son $-8{,}56\pm j10{,}52$ y $-1{,}03\pm j1{,}16$: el lazo del ángulo es más oscilante y el del carro, algo más lento que con el LQR.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=2 by 1,horizontal sep=1.6cm},
+  manual,width=0.5\linewidth,height=4.5cm,xlabel={$t$ [s]}]
+\nextgroupplot[xmin=0,xmax=4,ylabel={$\theta$ [$^\circ$]},legend pos=north east,title={\small Condición inicial $\theta_0=0{,}1$ rad}]
+\addplot[c2] table[x=t,y=thdeg]{data/pid_ic.dat};
+\addplot[c1] table[x=t,y=thdeg]{data/lqr_ic.dat};
+\legend{PID+PD,LQR ($\theta_0=0{,}15$)}
+\nextgroupplot[xmin=0,xmax=10,ylabel={$x$ [m]},legend pos=south east,title={\small Escalón de \SI{0.3}{m}}]
+\addplot[c2] table[x=t,y=x]{data/pid_step.dat};
+\addplot[black,dashed] table[x=t,y=r]{data/pid_step.dat};
+\legend{$x$,$r$}
+\end{groupplot}
+\end{tikzpicture}
+\caption{Modo PID+PD. El escalón en posición muestra un sobreimpulso y una cola lenta, debidos al par de polos lentos poco amortiguado.}
+\label{fig:pid}
+\end{figure}
+
+\section{\emph{Swing-up} por control de energía}
+\label{sec:swingup}
+
+Partiendo de la varilla colgando, un controlador lineal no puede levantarla: el ángulo recorre $\pi$ radianes y la fuerza está limitada. La estrategia de Åström y Furuta~\cite{astrom2000} consiste en controlar la \textbf{energía} $E$ de la varilla, definida en~\eqref{eq:energia}, hasta llevarla al valor que corresponde a la varilla arriba en reposo ($E=0$). Cuando la varilla pasa cerca de la vertical, se conmuta al LQR.
+
+\subsection{Ley de control}
+
+Por~\eqref{eq:Edot}, despreciando $b_p$, se tiene $\dot E=-ml\cos\theta\,\thd\,a$, donde $a=\xdd$ es la aceleración del carro. Tomemos como función de Lyapunov $V=\tfrac12E^2$ y elijamos
+\begin{equation}
+a = k_E\,E\,\thd\cos\theta \quad\Longrightarrow\quad
+\dot V = E\dot E = -k_E\,ml\,E^2(\thd\cos\theta)^2 \le 0 .
+\end{equation}
+La energía converge a $0$ salvo en los instantes en que $\thd\cos\theta=0$, que son aislados. En la práctica se satura la aceleración y se añade un término que mantiene el carro centrado:
+\begin{equation}
+a = \operatorname{sat}_{a_{\max}}\!\Big(k_E\,E\,\thd\cos\theta \;-\; k_{x}(x-r) \;-\; k_v\xd\Big).
+\label{eq:swing}
+\end{equation}
+Si la varilla está exactamente en reposo abajo, $\thd=0$ y la ley no hace nada. En ese caso se añade un pequeño impulso inicial ($0{,}3\,a_{\max}$) mientras $|\thd|<\SI{0.05}{rad/s}$ y $\cos\theta<-0{,}99$.
+
+\subsection{De la aceleración a la fuerza (dinámica inversa)}
+
+La ley~\eqref{eq:swing} da una aceleración deseada. La fuerza necesaria se obtiene de las ecuaciones del modelo: primero se calcula la aceleración angular resultante de~\eqref{eq:el2} y después la fuerza de~\eqref{eq:el1}:
+\begin{align}
+\thdd^\ast &= \frac{mgl\sin\theta - ml\cos\theta\,a - b_p\thd}{\Jp},\\
+F &= (M+m)\,a + ml\cos\theta\,\thdd^\ast - ml\sin\theta\,\thd^2 + b_c\xd .
+\end{align}
+
+\subsection{Conmutación}
+
+La figura~\ref{fig:fsm} muestra la máquina de estados. Se usa histéresis: se captura al bajar de $|\theta|<\SI{0.35}{rad}$ ($20^\circ$) y se libera al superar $|\theta|>\SI{0.8}{rad}$. Así se evitan conmutaciones repetidas en el borde de la región.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>=Latex,node distance=5cm,
+  st/.style={draw,thick,rounded corners=8pt,minimum width=3.2cm,minimum height=1.3cm,align=center,font=\small}]
+\node[st,fill=c3!20] (sw) {\textbf{SWING-UP}\\$a$ según \eqref{eq:swing}};
+\node[st,fill=c5!20,right=of sw] (lq) {\textbf{LQR}\\$F=-K_\uparrow(\vect s-\vect s_r)$};
+\draw[->,thick] (sw.north east) to[bend left=25] node[above,font=\small]{$|\theta_w|<\theta_{\text{catch}}=0{,}35$} (lq.north west);
+\draw[->,thick] (lq.south west) to[bend left=25] node[below,font=\small]{$|\theta_w|>\theta_{\text{release}}=0{,}8$} (sw.south east);
+\draw[<-,thick] (sw.west) -- ++(-1,0) node[left,font=\small]{inicio};
+\end{tikzpicture}
+\caption{Máquina de estados del modo 2. $\theta_w$ es el ángulo envuelto a $[-\pi,\pi)$.}
+\label{fig:fsm}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=1 by 4,vertical sep=0.3cm,xticklabels at=edge bottom},
+  manual,height=3.3cm,xmin=0,xmax=10]
+\nextgroupplot[ylabel={$\theta$ [$^\circ$]},ytick={-180,-90,0,90,180}]
+\addplot[c2,only marks,mark size=0.4pt] table[x=t,y=thdeg]{data/swingup.dat};
+\nextgroupplot[ylabel={$E$ [J]}]
+\addplot[c4] table[x=t,y=E]{data/swingup_E.dat};
+\addplot[c5!70!black,dashed,const plot] table[x=t,y expr=\thisrow{caught}*0.2-1.3]{data/swingup.dat};
+\node[font=\footnotesize,c5!60!black,anchor=west] at (axis cs:6.0,-1.0) {capturado (LQR)};
+\nextgroupplot[ylabel={$x$ [m]}]
+\addplot[c1] table[x=t,y=x]{data/swingup.dat};
+\nextgroupplot[ylabel={$F$ [N]},xlabel={$t$ [s]}]
+\addplot[c4!60!black] table[x=t,y=F]{data/swingup.dat};
+\end{groupplot}
+\end{tikzpicture}
+\caption{\emph{Swing-up} desde la varilla colgando en reposo. La energía sube por bombeo desde $-2mgl=\SI{-1.18}{J}$; la captura se produce en $t\approx\SI{5.5}{s}$ y el carro no supera $|x|=\SI{0.47}{m}$.}
+\label{fig:swingup}
+\end{figure}
+
+\section{Modo grúa: posicionamiento con anti-balanceo}
+\label{sec:grua}
+
+Con la varilla colgando, el problema es el de una grúa puente: llevar la carga a una posición sin que quede oscilando. Se diseña un LQR sobre el modelo linealizado en $\theta=\pi$, usando la desviación $\varphi=\operatorname{wrap}(\theta-\pi)$. Con $Q=\operatorname{diag}(50,1,20,1)$ y $R=0{,}1$:
+\[
+K_\downarrow=\begin{bmatrix}22{,}36 & 10{,}87 & 19{,}24 & 0{,}35\end{bmatrix},\qquad
+\lambda=\{-11{,}72,\ -7{,}26,\ -1{,}69\pm j2{,}98\}.
+\]
+Si se anulan las ganancias del ángulo, el controlador se reduce a un PD sobre el carro, que lo posiciona igual de bien pero deja la carga oscilando. La comparación (figura~\ref{fig:grua}) es elocuente: \SI{0.34}{\degree} de balanceo residual con anti-balanceo frente a \SI{16.5}{\degree} sin él.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=1 by 2,vertical sep=0.35cm,xticklabels at=edge bottom},
+  manual,height=4cm,xmin=0,xmax=8]
+\nextgroupplot[ylabel={$x$ [m]},legend pos=south east]
+\addplot[c1] table[x=t,y=x]{data/crane.dat};
+\addplot[c2] table[x=t,y=x]{data/crane_nosway.dat};
+\addplot[black,dashed] table[x=t,y=r]{data/crane.dat};
+\legend{LQR anti-balanceo,solo PD carro,$r$}
+\nextgroupplot[ylabel={$\theta-\pi$ [$^\circ$]},xlabel={$t$ [s]}]
+\addplot[c1] table[x=t,y expr={mod(\thisrow{thdeg}+360,360)-180}]{data/crane.dat};
+\addplot[c2] table[x=t,y expr={mod(\thisrow{thdeg}+360,360)-180}]{data/crane_nosway.dat};
+\end{groupplot}
+\end{tikzpicture}
+\caption{Modo grúa: escalón de \SI{0.5}{m} con y sin realimentación del ángulo.}
+\label{fig:grua}
+\end{figure}
+
+\section{Robustez frente a errores de modelo}
+
+Las ganancias se calculan con los parámetros nominales. Para ver qué ocurre si la planta real es distinta, la figura~\ref{fig:robust} mantiene $K_\uparrow$ nominal (calculado con $M=\SI{0.5}{kg}$) y cambia la masa real del carro. El lazo sigue estable con masas reales de 0,3 a \SI{2}{kg} (de 0,6 a 4 veces la nominal); a medida que el carro se hace más pesado, el recorrido del carro aumenta.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=2 by 1,horizontal sep=1.6cm},
+  manual,width=0.5\linewidth,height=4.5cm,xmin=0,xmax=6,xlabel={$t$ [s]}]
+\nextgroupplot[ylabel={$\theta$ [$^\circ$]},legend pos=north east]
+\addplot[c1] table[x=t,y=thdeg]{data/msweep_0.3.dat};
+\addplot[c2] table[x=t,y=thdeg]{data/lqr_ic.dat};
+\addplot[c4] table[x=t,y=thdeg]{data/msweep_1.0.dat};
+\addplot[c5!70!black] table[x=t,y=thdeg]{data/msweep_2.0.dat};
+\legend{$M=0{,}3$,$M=0{,}5$ (nom.),$M=1$,$M=2$}
+\nextgroupplot[ylabel={$x$ [m]}]
+\addplot[c1] table[x=t,y=x]{data/msweep_0.3.dat};
+\addplot[c2] table[x=t,y=x]{data/lqr_ic.dat};
+\addplot[c4] table[x=t,y=x]{data/msweep_1.0.dat};
+\addplot[c5!70!black] table[x=t,y=x]{data/msweep_2.0.dat};
+\end{groupplot}
+\end{tikzpicture}
+\caption{Robustez del LQR nominal frente a la masa real del carro.}
+\label{fig:robust}
+\end{figure}
+
+\section{Supervisión y seguridad}
+
+El controlador incluye un corte de seguridad con enclavamiento: si $|x_m|>x_{\text{safe}}=\SI{0.78}{m}$ en cualquier modo excepto el de lazo abierto, la fuerza de control se anula y se activa la señal \code{tripped}. Para rearmar el controlador hay que deshabilitarlo y volver a habilitarlo, o cambiar de modo. Este mecanismo protege frente a ganancias mal ajustadas y frente a perturbaciones grandes. Además, los topes elásticos del modelo de planta reproducen lo que ocurriría al llegar al final del raíl.
+
+\section{Resumen comparativo}
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}lXXl@{}}
+\toprule
+Modo & Ventajas & Limitaciones & Parámetros\\
+\midrule
+1 LQR & óptimo, sistemático, buen compromiso entre fuerza y rapidez & necesita modelo y velocidades; válido solo cerca de $\theta=0$ & \code{Qup}, \code{Rup}\\
+2 Swing-up & levanta la varilla desde cualquier estado & ajuste empírico; requiere recorrido de raíl & \code{k\_E}, \code{a\_max}, \code{kx\_sw}\\
+3 PID+PD & intuitivo, sin modelo explícito & ajuste por prueba y error; signos poco intuitivos & \code{Kp\_th}…\code{Kd\_x}\\
+4 Grúa & elimina el balanceo residual & solo con la varilla abajo & \code{Qdn}, \code{Rdn}\\
+\bottomrule
+\end{tabularx}
+\caption{Comparación de los modos de control.}
+\end{table}

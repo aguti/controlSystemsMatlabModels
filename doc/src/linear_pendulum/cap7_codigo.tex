@@ -1,0 +1,181 @@
+\chapter{Interfaces de usuario: código y GUI}
+\label{cap:codigo}
+
+\section{La clase \code{CartPole}}
+
+\code{CartPole} encapsula todo el acceso al modelo. Permite trabajar de dos maneras (figura~\ref{fig:modos}):
+\begin{itemize}
+  \item \textbf{Por lotes} (\code{run(T)}): simula $T$ segundos tan rápido como puede y devuelve un \emph{struct} con todas las señales. Es la forma adecuada para diseñar, hacer barridos y generar figuras.
+  \item \textbf{En vivo} (\code{start}/\code{stop}): simula indefinidamente en tiempo real. Los comandos tienen efecto inmediato y la telemetría llega a las funciones registradas como \emph{callback}.
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[>=Latex,font=\small,
+  ll/.style={draw,thick,minimum width=2.6cm,minimum height=0.8cm,fill=#1,align=center},ll/.default=gray!10,
+  lab/.style={above,font=\scriptsize,fill=white,inner sep=1pt}]
+\def\xa{0}\def\xb{6.5}\def\xc{13}
+\node[ll=c1!12] (u) at (\xa,0) {Usuario /\\script / GUI};
+\node[ll=c4!12] (c) at (\xb,0) {\code{CartPole}};
+\node[ll=c5!12] (s) at (\xc,0) {Simulink\\\code{cartpole\_sim}};
+\foreach \n in {u,c,s} \draw[dashed,gray] (\n.south) -- ++(0,-8.4);
+\draw[->] (\xa,-1.1) -- node[lab]{\code{setMode}, \code{setRef}, \code{setInitialState}} (\xb,-1.1);
+\draw[->] (\xb,-1.8) -- node[lab]{\code{set\_param(cmd\_*)}, \code{assignin('base','P')}} (\xc,-1.8);
+\draw[->] (\xa,-2.6) -- node[lab]{\code{start()}} (\xb,-2.6);
+\draw[->] (\xb,-3.3) -- node[lab]{\code{SimulationCommand=start} (pacing 1x)} (\xc,-3.3);
+\draw[->,c2] (\xc,-4.0) -- node[lab]{\code{StartFcn}: \emph{listener} sobre \code{telemetry}} (\xb,-4.0);
+\draw[->,c2] (\xc,-4.7) -- node[lab]{\code{PostOutputs} (cada paso)} (\xb,-4.7);
+\draw[->,c2] (\xb,-5.4) -- node[lab]{\code{callback(t,d)} a 30 Hz} (\xa,-5.4);
+\draw[->] (\xa,-6.2) -- node[lab]{\code{push(F,dur)}, \code{setParam(...)}} (\xb,-6.2);
+\draw[->] (\xb,-6.9) -- node[lab]{\code{cmd\_dist} / \code{SimulationCommand=update}} (\xc,-6.9);
+\draw[->] (\xa,-7.7) -- node[lab]{\code{stop(); res = lastResult()}} (\xb,-7.7);
+\end{tikzpicture}}
+\caption{Secuencia de interacción en el modo en vivo.}
+\label{fig:modos}
+\end{figure}
+
+\subsection{Referencia de métodos}
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}p{5.6cm}Xc@{}}
+\toprule
+Método & Descripción & En vivo\\
+\midrule
+\code{cp = CartPole()} & Carga o genera el modelo, calcula $K$ y publica \code{P}. & --\\
+\code{res = cp.run(T)} & Simulación por lotes de $T$ segundos. & no\\
+\code{cp.start()}, \code{stop()}, \code{pause()}, \code{resume()} & Control de la simulación en vivo. & --\\
+\code{cp.setMode(m)} & \code{'open'}, \code{'lqr'}, \code{'swingup'}, \code{'pid'}, \code{'crane'} (o 0..4). & sí\\
+\code{cp.enable(tf)} & Habilita o inhibe el controlador (también rearma la seguridad). & sí\\
+\code{cp.setForce(u)} & Fuerza manual en N, sumada a la del control. & sí\\
+\code{cp.setRef(tipo,off,amp,f)} & Referencia: \code{'const'}, \code{'sine'}, \code{'square'}, \code{'triangle'}, \code{'external'}. & sí\\
+\code{cp.push(F,dur)} & Empujón en la punta (temporizador). & sí\\
+\code{cp.setParam(n,v)}, \code{setParams(S)} & Cambia parámetros, recalcula $K$ y lo aplica. & sí\\
+\code{cp.setParamRaw(n,v)} & Cambia un parámetro sin recalcular $K$ (robustez, ganancias manuales). & sí\\
+\code{cp.setInitialState(s0)} & Estado inicial para el próximo arranque. & no\\
+\code{cp.setRefSignal(t,r)} & Referencia arbitraria (\code{ref\_ext}). & no\\
+\code{cp.setForceSignal(t,u)} & Excitación de fuerza (\code{u\_ext}). & no\\
+\code{cp.setDisturbanceSignal(t,Fd)} & Perturbación programada (\code{d\_ext}). & no\\
+\code{cp.addTelemetryCallback(f)} & Registra \code{f(t,d)}, con \code{d} el vector de la tabla~\ref{tab:tel}. & --\\
+\code{res = cp.lastResult()} & Datos de la última sesión en vivo. & --\\
+\code{cp.animate(res, vel)} & Reproduce un ensayo. & --\\
+\bottomrule
+\end{tabularx}
+\caption{API de \code{CartPole}.}
+\end{table}
+
+\subsection{Ejemplos}
+
+\begin{ejemplo}{Ensayo por lotes y métricas}
+\begin{lstlisting}
+cp = CartPole();
+cp.setInitialState([0 0 0.15 0]);
+cp.setMode('lqr'); cp.setRef('const', 0);
+res = cp.run(6);
+ts  = res.t(find(abs(res.th_deg) > 0.5, 1, 'last'));   % tiempo de asentamiento
+fprintf('ts = %.2f s,  Fmax = %.1f N\n', ts, max(abs(res.Fact)));
+cp_plot_results(res, 'LQR');
+\end{lstlisting}
+\end{ejemplo}
+
+\begin{ejemplo}{Sesión en vivo controlada desde un script}
+\begin{lstlisting}
+cp.setInitialState([0 0 0.05 0]); cp.setMode('lqr');
+cp.TelemetryRate = 5;
+cp.addTelemetryCallback(@(t,d) fprintf('%6.2f  x=%+.3f\n', t, d(CartPole.TEL.x)));
+cp.start();               pause(3)       % la simulación corre en segundo plano
+cp.setRef('sine', 0, 0.2, 0.2);  pause(5)
+cp.push(1, 0.1);                  pause(3)
+cp.stop();  res = cp.lastResult();  cp.clearCallbacks();
+\end{lstlisting}
+\end{ejemplo}
+
+\begin{ejemplo}{Barrido de diseño: elegir $R$ para no saturar}
+\begin{lstlisting}
+Rs = logspace(-2, 1, 8);  Fmax = zeros(size(Rs));  ts = Fmax;
+cp.setMode('lqr'); cp.setInitialState([0 0 0.15 0]);
+for k = 1:numel(Rs)
+    cp.setParam('Rup', Rs(k));            % recalcula K
+    res = cp.run(6);
+    Fmax(k) = max(abs(res.Fcmd));
+    ts(k)   = res.t(find(abs(res.th_deg) > 0.5, 1, 'last'));
+end
+yyaxis left;  semilogx(Rs, Fmax, 'o-'); ylabel('F_{max} [N]')
+yyaxis right; semilogx(Rs, ts, 's-');   ylabel('t_s [s]'); xlabel('R')
+\end{lstlisting}
+\end{ejemplo}
+
+\subsection{Añadir un controlador propio}
+\label{sec:nuevo_modo}
+
+Para añadir, por ejemplo, un modo 5 (LQR con acción integral sobre el error de posición), hay que hacer tres cambios:
+\begin{enumerate}
+  \item En \code{cp\_params.m}, añadir \code{P.K\_int = zeros(1,5); P.Qint = diag([50 1 200 1 20]);}.
+  \item En \code{cp\_design.m}, ampliar el modelo con el estado $\xi=\int(x-r)\,\dd t$ y calcular la ganancia:
+\begin{lstlisting}
+Aa = [A zeros(4,1); 1 0 0 0 0];   Ba = [B; 0];
+P.K_int = cp_lqr(Aa, Ba, P.Qint, P.Rup);
+\end{lstlisting}
+  \item En \code{cp\_controller\_block.m}, añadir el caso:
+\begin{lstlisting}
+    case 5  % LQR con integral del error de posición
+        I  = min(max(I + (x - r)*P.Ts, -P.I_max), P.I_max);
+        Fc = -P.K_int*[x - r; xd; thw; thd; I];
+\end{lstlisting}
+\end{enumerate}
+Por último, ejecutar \code{cp\_build\_model} y añadir \code{'lqri'} a \code{CartPole.MODES}. La práctica~4 propone evaluar este modo.
+
+\section{Interfaz gráfica \code{cp\_gui}}
+
+\code{cp\_gui} abre una ventana construida con \code{uifigure} (figura~\ref{fig:gui}). Usa internamente un objeto \code{CartPole}, de modo que todo lo que se hace en la GUI también puede hacerse desde la línea de comandos al mismo tiempo: \code{cp = cp\_gui;} devuelve el objeto.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\footnotesize,x=1cm,y=1cm]
+\draw[thick,fill=gray!5] (0,0) rectangle (15,9.4);
+\fill[c1!70] (0,9.4) rectangle (15,9.9); \node[white,anchor=west] at (0.2,9.65) {Linear pendulum — live Simulink};
+% animación
+\draw[fill=white] (0.3,5.3) rectangle (10.3,9.2);
+\node[anchor=north west,gray] at (0.35,9.15) {Animación};
+\draw[thick,gray] (1.2,6.0) -- (9.4,6.0);
+\draw[line width=2pt] (1.2,5.8) -- (1.2,6.3); \draw[line width=2pt] (9.4,5.8) -- (9.4,6.3);
+\draw[fill=c1!60] (5.0,5.85) rectangle (5.9,6.3);
+\draw[line width=3pt,c2] (5.45,6.2) -- (6.1,8.6); \fill[c2] (6.1,8.6) circle (0.1);
+\fill[c5] (5.25,5.6) -- (5.45,5.85) -- (5.65,5.6) -- cycle;
+% gráficas
+\foreach \y/\l in {3.95/{$x$, $r$},2.6/{$\theta$},1.25/{$F$}} {
+  \draw[fill=white] (0.3,\y-0.95) rectangle (10.3,\y+0.25);
+  \node[anchor=north west,gray] at (0.35,\y+0.22) {\l\ (ventana de 10 s)};
+}
+\draw[c1,thick] plot[domain=0.6:10,samples=60] (\x,{3.55+0.25*sin(60*\x)});
+\draw[c2,thick] plot[domain=0.6:10,samples=60] (\x,{2.2+0.2*exp(-0.3*\x)*sin(200*\x)});
+\draw[c4,thick] plot[domain=0.6:10,samples=60] (\x,{0.85+0.25*exp(-0.3*\x)*cos(200*\x)});
+% panel derecho
+\begin{scope}[shift={(10.6,0)}]
+\foreach \y/\t/\h in {7.6/{\textbf{Simulation}: \textcolor{c5!60!black}{$\blacktriangleright$Start} $\|$ \textcolor{c2}{$\blacksquare$Stop}\\ initial state, $\theta_0$, $x_0$, speed}/1.6,
+                    5.5/{\textbf{Control}: mode $\blacktriangledown$, enabled $\square$\\ manual F (slider)\\ push}/1.8,
+                    3.6/{\textbf{Cart reference}: type, offset,\\ amplitude, frequency}/1.6,
+                    2.0/{\textbf{LQR tuning}: $Q_x, Q_{\dot x}, Q_\theta, R$\\ {[Recompute K]} \ $K=[\dots]$}/1.4,
+                    0.2/{\textbf{Sensors and data}\\ \textbf{Status}: $t$, $x$, $\theta$, $F$, warnings}/1.6} {
+  \draw[fill=white,rounded corners=2pt] (0,\y) rectangle (4.2,\y+\h);
+  \node[anchor=north west,align=left,text width=4.05cm,font=\scriptsize] at (0.05,\y+\h-0.05) {\t};
+}
+\end{scope}
+\end{tikzpicture}
+\caption{Disposición de la interfaz gráfica.}
+\label{fig:gui}
+\end{figure}
+
+\paragraph{Uso típico.}
+\begin{enumerate}
+  \item Elegir el estado inicial (arriba con $\theta_0$, o abajo) y la velocidad de simulación.
+  \item Pulsar \textbf{Start}. Desde ese momento, cualquier cambio de modo, referencia, fuerza o pesos LQR se aplica en vivo.
+  \item Con la ventana activa, las teclas $\leftarrow/\rightarrow$ aplican $\pm\SI{5}{N}$ mientras se mantienen pulsadas y la \textbf{barra espaciadora} da un empujón.
+  \item Si aparece «SAFETY», hay que desmarcar y volver a marcar \emph{Control enabled}.
+  \item \textbf{Stop} y después \textbf{Export last run}: los datos quedan en \code{cp\_res} y se representan con \code{cp\_plot\_results}.
+\end{enumerate}
+
+\begin{nota}
+Prueba a levantar la varilla con el modo 0 y las flechas del teclado, sin controlador. Es muy difícil, y deja claro por qué el polo en $+5{,}45$ obliga a reaccionar en unas décimas de segundo. Después, con el modo 2, el controlador lo resuelve en unos 5 segundos.
+\end{nota}

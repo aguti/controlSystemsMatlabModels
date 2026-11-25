@@ -1,0 +1,78 @@
+\chapter{Instrumentación y estimación de velocidades}
+\label{cap:sensores}
+
+\section{Cadena de medida}
+
+En el modelo, cada medida pasa por tres etapas, que reproducen las de un banco real:
+\begin{equation}
+y_k = \mathcal{Q}_q\big(p(kT_s) + \sigma\,n_k\big),\qquad
+\mathcal{Q}_q(u)=q\,\operatorname{round}(u/q),
+\end{equation}
+donde $p$ es la posición real ($x$ o $\theta$), $n_k\sim\mathcal N(0,1)$ es el ruido (desactivado por defecto) y $q$ es la resolución del encoder.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=1.0cm and 1.1cm,>=Latex,
+  bloque/.style={draw,thick,rounded corners=2pt,minimum height=0.9cm,minimum width=1.6cm,align=center,font=\small,fill=c1!8},
+  suma/.style={draw,circle,inner sep=1.5pt,thick}]
+\node (p) {$p(t)$};
+\node[suma,right=of p] (s) {$+$};
+\node[bloque,right=of s] (q) {Cuantizador\\$q$};
+\node[bloque,right=of q] (z) {ZOH\\$T_s$};
+\node[right=of z] (y) {$y_k$};
+\node[bloque,above=0.6cm of s,fill=gray!10] (n) {$\sigma\, n(t)$};
+\draw[->] (p) -- (s); \draw[->] (n) -- (s); \draw[->] (s) -- (q); \draw[->] (q) -- (z); \draw[->] (z) -- (y);
+\end{tikzpicture}
+\caption{Modelo de cada canal de medida (subsistema \code{Sensores}).}
+\end{figure}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Canal & Resolución $q$ & Error de cuantización ($\sigma_q=q/\sqrt{12}$) & Ruido opcional $\sigma$\\
+\midrule
+$x$ & \SI{0.1}{mm} & \SI{0.029}{mm} & \SI{0.1}{mm}\\
+$\theta$ & $2\pi/4096=\SI{1.53}{mrad}$ ($0{,}088^\circ$) & \SI{0.44}{mrad} & \SI{1}{mrad}\\
+\bottomrule
+\end{tabular}
+\caption{Características de los encoders simulados.}
+\end{table}
+
+\section{Elección del periodo de muestreo}
+
+El controlador trabaja con $T_s=\SI{2}{ms}$ (\SI{500}{Hz}). El polo más rápido del lazo cerrado LQR está en $|s|\approx\SI{14.6}{rad/s}$, es decir, unos \SI{2.3}{Hz}. La relación entre la frecuencia de muestreo y el ancho de banda resulta de unos 200, muy por encima del mínimo habitual (entre 20 y 30). Así, el controlador discreto se comporta prácticamente como el continuo, con el que se ha diseñado. El solver de la planta usa un paso fijo $h=\SI{1}{ms}=T_s/2$.
+
+\section{Estimación de velocidades}
+
+Derivar la señal cuantizada directamente amplifica mucho el ruido. Si $\theta$ cambia una sola cuenta entre dos muestras, la derivada salta en
+\begin{equation}
+\Delta\thd = q/T_s = \SI{1.53e-3}{}/\SI{0.002}{} \approx \SI{0.77}{rad/s} .
+\end{equation}
+Por eso se usa una \textbf{derivada filtrada}, equivalente en continuo a $\frac{s}{\tau_v s+1}$ con $\tau_v=\SI{10}{ms}$:
+\begin{equation}
+\hat v_k = a\,\hat v_{k-1} + (1-a)\,\frac{y_k-y_{k-1}}{T_s},\qquad a=e^{-T_s/\tau_v}=0{,}819.
+\end{equation}
+Su función de transferencia discreta es
+\begin{equation}
+\frac{\hat V(z)}{Y(z)} = \frac{1-a}{T_s}\,\frac{1-z^{-1}}{1-a z^{-1}} .
+\end{equation}
+Este filtro deriva correctamente hasta unos $1/\tau_v=\SI{100}{rad/s}$ (\SI{16}{Hz}) y atenúa por encima. El retraso que introduce a la frecuencia de cruce (unos \SI{15}{rad/s}) es de $\arctan(15\tau_v)\approx 8,5^\circ$, que el diseño tolera sin problemas.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[manual,height=5cm,xlabel={$t$ [s]},ylabel={$\thd$ [rad/s]},xmin=0,xmax=0.5,legend pos=south west,legend columns=3]
+\addplot[gray!60,line width=0.5pt,const plot] table[x=t,y=raw]{data/velest.dat};
+\addplot[c2,line width=1.2pt] table[x=t,y=filt]{data/velest.dat};
+\addplot[black,dashed] table[x=t,y=true]{data/velest.dat};
+\legend{diferencia directa,derivada filtrada,real}
+\end{axis}
+\end{tikzpicture}
+\caption{Estimación de $\thd$ para $\theta(t)=0{,}2\sin(2\pi t)$, cuantizada a 4096 cuentas por vuelta y muestreada a \SI{500}{Hz}.}
+\label{fig:velest}
+\end{figure}
+
+\begin{nota}
+La práctica~9 propone variar $\tau_v$, $T_s$ y la resolución de los encoders, y observar cuándo el lazo empieza a vibrar (ruido de cuantización amplificado por las ganancias derivativas) o se vuelve inestable (demasiado retraso). Una alternativa más elaborada es un observador de Luenberger o un filtro de Kalman, que es el tema de la práctica~10.
+\end{nota}

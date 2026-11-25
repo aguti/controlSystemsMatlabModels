@@ -1,0 +1,204 @@
+\chapter{Prácticas guiadas}
+\label{cap:practicas}
+
+Las prácticas están ordenadas de menor a mayor dificultad. Cada una indica sus objetivos, el procedimiento con el código necesario, las cuestiones a responder y lo que debe entregarse. Al empezar cada sesión conviene ejecutar:
+\begin{lstlisting}
+clear; close all; cp = CartPole(); cp.clearSignals();
+\end{lstlisting}
+Los valores numéricos que se citan como referencia corresponden a los parámetros por defecto.
+
+% ----------------------------------------------------------------
+\stepcounter{practica}
+\begin{practica}{Exploración en lazo abierto y validación del modelo}
+\objetivos
+\begin{itemize}
+  \item Familiarizarse con la interfaz y comprobar el modelo frente a la teoría.
+  \item Medir la frecuencia y el amortiguamiento de la oscilación colgante.
+\end{itemize}
+\procedimiento
+\begin{enumerate}
+  \item Ensayo de caída libre desde arriba (sin control):
+\begin{lstlisting}
+cp.setMode('open'); cp.setInitialState([0 0 0.01 0]);
+res = cp.run(3); cp_plot_results(res); cp.animate(res);
+\end{lstlisting}
+  \item Ajustar a los primeros \SI{0.5}{s} una exponencial $\theta(t)\approx\theta_0\cosh(pt)$ y estimar $p$.
+  \item Oscilación libre colgando: \code{cp.setInitialState([0 0 pi-0.2 0]); res = cp.run(20);}. Medir el periodo y el decremento logarítmico $\delta=\ln(A_k/A_{k+1})$, y calcular $\zeta=\delta/\sqrt{4\pi^2+\delta^2}$.
+  \item Repetir el punto anterior con el carro bloqueado (\code{cp.setParam('M',1e3)}) y comparar con $\omega_0=\sqrt{mgl/\Jp}$.
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item ¿Coincide $p$ con el polo inestable de la tabla~\ref{tab:polos} ($5{,}45$)? ¿Por qué no exactamente?
+  \item Explicar por qué la frecuencia con el carro libre (\SI{0.89}{Hz}) es mayor que con el carro bloqueado (\SI{0.79}{Hz}).
+  \item ¿Qué fricción domina el amortiguamiento de la oscilación, la del carro o la del pivote? Comprobarlo variando \code{bc} y \code{bp}.
+\end{enumerate}
+\entregables Gráficas de los tres ensayos y una tabla comparativa entre teoría y simulación.
+\end{practica}
+
+% ----------------------------------------------------------------
+\stepcounter{practica}
+\begin{practica}{Identificación experimental con una señal chirp}
+\objetivos Obtener la respuesta en frecuencia del sistema colgante a partir de datos y compararla con la figura~\ref{fig:bode}.
+\procedimiento
+\begin{enumerate}
+  \item Generar un chirp de fuerza de \SI{0.7}{N} entre \SI{0.5}{Hz} y \SI{3}{Hz} durante \SI{20}{s} y aplicarlo en lazo abierto:
+\begin{lstlisting}
+T = 20; tt = (0:cp.P.h:T)'; f0 = 0.5; f1 = 3;
+u = 0.7*sin(2*pi*(f0*tt + (f1-f0)/(2*T)*tt.^2));
+cp.setInitialState([0 0 pi 0]); cp.setMode('open');
+cp.setForceSignal(tt, u); res = cp.run(T); cp.clearSignals();
+\end{lstlisting}
+  \item Estimar la respuesta en frecuencia con \code{tfestimate(res.Fact, mod(res.th,2*pi)-pi, [], [], [], 1/cp.P.h)}, de la Signal Processing Toolbox, o dividiendo directamente las FFT.
+  \item Ajustar un modelo de segundo orden a $\Theta/F$ cerca de la resonancia.
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item ¿Dónde aparece la resonancia y dónde la antirresonancia de $X/F$?
+  \item ¿Por qué no conviene excitar por debajo de \SI{0.3}{Hz} en lazo abierto? (Pista: polo en el origen y longitud del raíl.)
+  \item ¿Cómo afecta la fricción de Coulomb a la identificación cuando la amplitud de la fuerza es pequeña?
+\end{enumerate}
+\entregables Bode experimental superpuesto al teórico y parámetros identificados.
+\end{practica}
+
+% ----------------------------------------------------------------
+\stepcounter{practica}
+\begin{practica}{Diseño de un LQR: influencia de $Q$ y $R$}
+\objetivos Entender el compromiso entre rapidez, esfuerzo y recorrido del carro.
+\procedimiento
+\begin{enumerate}
+  \item Desde $\theta_0=\SI{0.15}{rad}$, repetir el ensayo con $Q_\theta\in\{20,200,2000\}$ y luego con $R\in\{0{,}01,\ 0{,}1,\ 1\}$ (véase la figura~\ref{fig:qsweep}).
+  \item Para cada diseño, anotar $K$, los polos del lazo cerrado (\code{cp.Lin.up.poles\_CL}), el tiempo de asentamiento a $0{,}5^\circ$, $F_{\max}$ y $|x|_{\max}$.
+  \item Aplicar la regla de Bryson con $\theta_{\max}=5^\circ$, $x_{\max}=\SI{0.2}{m}$ y $F_{\max}=\SI{10}{N}$. Comparar el resultado con el diseño por defecto.
+  \item En la GUI, cambiar $Q$ y $R$ en vivo mientras se aplican empujones.
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item Comprobar que $K_x=-\sqrt{Q_x/R}$ en todos los diseños y justificarlo.
+  \item ¿Qué ocurre cuando el diseño satura el actuador? ¿Hay un ángulo inicial máximo recuperable? Encontrarlo por bisección.
+\end{enumerate}
+\entregables Tabla de diseños con sus métricas y una recomendación justificada.
+\end{practica}
+
+% ----------------------------------------------------------------
+\stepcounter{practica}
+\begin{practica}{Seguimiento de referencias y fase no mínima}
+\objetivos Observar la respuesta inversa y cuantificar los límites de seguimiento.
+\procedimiento
+\begin{enumerate}
+  \item Aplicar un escalón con \code{cp.setRefSignal([0 1 1.001 8], [0 0 0.3 0.3])} y medir el retroceso inicial (figura~\ref{fig:lqrstep}).
+  \item Referencias senoidales de \SI{0.2}{m} a 0,05; 0,1; 0,2 y \SI{0.4}{Hz}: medir la ganancia y el desfase entre $x$ y $r$, y dibujar el Bode del lazo cerrado.
+  \item Implementar el modo 5 con acción integral (sección~\ref{sec:nuevo_modo}) y repetir el ensayo de escalón con la fricción de Coulomb aumentada a \code{Fc = 1}.
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item Relacionar el ancho de banda medido con la posición del cero $z=4{,}91$.
+  \item ¿Desaparece la respuesta inversa con el integrador? ¿Por qué no puede desaparecer con ningún controlador?
+  \item Proponer un prefiltro o feedforward que reduzca el retraso con referencias senoidales.
+\end{enumerate}
+\entregables Gráficas, Bode del lazo cerrado y comparación con y sin integral.
+\end{practica}
+
+% ----------------------------------------------------------------
+\stepcounter{practica}
+\begin{practica}{Rechazo de perturbaciones y robustez}
+\objetivos Evaluar el LQR frente a empujones y a errores en los parámetros.
+\procedimiento
+\begin{enumerate}
+  \item Programar empujones de amplitud creciente (\SI{0.5}{N} a \SI{3}{N}, durante \SI{0.1}{s}) con \code{setDisturbanceSignal} y determinar la amplitud máxima admisible antes de que salte la seguridad.
+  \item Sin recalcular $K$, variar la masa real del carro, la masa de la varilla y su longitud. Para ello, usar \code{cp.setParamRaw('M', 1)}, que cambia la planta sin recalcular $K$, en lugar de \code{setParam}, que sí lo recalcularía.
+  \item Repetir con el ruido de los sensores activado (\code{cp.setParam('noise\_on',1)}).
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item ¿Cuál de los parámetros es más crítico? Relacionarlo con la expresión de $A$ en~\eqref{eq:AB}.
+  \item ¿Qué margen de ganancia tiene el lazo real? Estimarlo multiplicando $K$ por un factor $\alpha$ hasta que el sistema se vuelva inestable, y comparar con el margen teórico del LQR.
+\end{enumerate}
+\entregables Mapa de estabilidad en función del parámetro y de $\alpha$.
+\end{practica}
+
+% ----------------------------------------------------------------
+\stepcounter{practica}
+\begin{practica}{PID+PD frente a LQR}
+\objetivos Ajustar el controlador clásico y compararlo con el óptimo.
+\procedimiento
+\begin{enumerate}
+  \item Con el modo \code{'pid'}, empezar con $K_{px}=K_{dx}=0$ y ajustar $K_{p\theta}$ y $K_{d\theta}$ hasta estabilizar el ángulo. Observar cómo deriva el carro.
+  \item Añadir $K_{px}$ y $K_{dx}$, primero con signo negativo y luego con signo positivo. Explicar lo que ocurre.
+  \item Calcular los polos de $A-BK_{\text{PID}}$ para cada ajuste y comparar con los del LQR.
+  \item Activar $K_{i\theta}$ y aplicar una fuerza constante de \SI{1}{N} (\code{cp.setForce(1)}). ¿Qué hace el integrador?
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item ¿Puede un ajuste PID reproducir exactamente el LQR? Razonar sobre la estructura de~\eqref{eq:pid}.
+  \item Ventajas prácticas del PID cuando el modelo es poco conocido.
+\end{enumerate}
+\entregables Ajuste final, polos y ensayo comparativo.
+\end{practica}
+
+% ----------------------------------------------------------------
+\stepcounter{practica}
+\begin{practica}{\emph{Swing-up} por energía}
+\objetivos Entender el control no lineal basado en energía y la conmutación entre controladores.
+\procedimiento
+\begin{enumerate}
+  \item Ejecutar el \emph{swing-up} por defecto (figura~\ref{fig:swingup}) y verificar que $E(t)$ crece de forma monótona hasta la captura.
+  \item Barrer $k_E\in\{2,5,10,20\}$ y $a_{\max}\in\{2,3,4,6\}$. Registrar el tiempo de captura y $|x|_{\max}$, y marcar los casos que activan la seguridad.
+  \item Eliminar el recentrado (\code{kx\_sw = 0}, \code{kv\_sw = 0}) y observar la deriva del carro.
+  \item Reducir \code{th\_catch} a \SI{0.15}{rad} y aumentarlo a \SI{0.6}{rad}. ¿Qué limita la región de captura?
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item Demostrar que $\dot V\le0$ con la ley~\eqref{eq:swing} sin saturación ni recentrado.
+  \item ¿Por qué no basta con un LQR con mucha ganancia para levantar la varilla?
+  \item Proponer una forma de reducir el recorrido del carro, por ejemplo con una energía objetivo ligeramente mayor que cero o con bombeo en varias etapas.
+\end{enumerate}
+\entregables Mapa (tiempo de captura y recorrido) frente a $(k_E,a_{\max})$ y explicación de la conmutación.
+\end{practica}
+
+% ----------------------------------------------------------------
+\stepcounter{practica}
+\begin{practica}{Grúa con anti-balanceo}
+\objetivos Diseñar un posicionamiento rápido sin oscilación residual de la carga.
+\procedimiento
+\begin{enumerate}
+  \item Reproducir la figura~\ref{fig:grua}: el modo \code{'crane'} con referencia cuadrada (\code{cp.setRef('square',0,0.4,0.1)}), frente al mismo modo con las ganancias angulares a cero:
+\begin{lstlisting}
+Kn = cp.P.K_dn; Kn(3:4) = 0;
+cp.setParamRaw('K_dn', Kn);        % sin recalcular el LQR
+\end{lstlisting}
+  \item Diseñar un \emph{input shaper} ZV (dos impulsos separados medio periodo de la oscilación) para la referencia del modo PD y compararlo con el LQR.
+  \item Variar la longitud de la varilla $\pm30\,\%$ sin rediseñar. ¿Qué método es más robusto?
+\end{enumerate}
+\preguntas Comparar tiempo de posicionamiento, balanceo residual y sensibilidad a la longitud de la varilla.
+\end{practica}
+
+% ----------------------------------------------------------------
+\stepcounter{practica}
+\begin{practica}{Efecto de la instrumentación}
+\objetivos Cuantificar cómo afectan el muestreo, la cuantización, el ruido y el filtro derivativo.
+\procedimiento
+\begin{enumerate}
+  \item Barrer $T_s\in\{1,2,5,10,20\}$\,ms. Mantener $h\le T_s/2$ con \code{cp.setParam('h',min(1e-3,Ts/2))}; \code{run()} ajusta \code{FixedStep} automáticamente. ¿A partir de qué $T_s$ se degrada el lazo? ¿Y cuándo se vuelve inestable?
+  \item Reducir la resolución del encoder angular a 1024, 512 y 256 cuentas por vuelta y observar el «ruido» en $F$.
+  \item Barrer $\tau_v\in\{1,5,10,30,100\}$\,ms. Representar la varianza de $F$ en régimen permanente frente al tiempo de asentamiento.
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item Explicar el compromiso de $\tau_v$ (figura~\ref{fig:velest}).
+  \item ¿Qué resolución mínima de encoder recomendaríais para el banco real?
+\end{enumerate}
+\end{practica}
+
+% ----------------------------------------------------------------
+\stepcounter{practica}
+\begin{practica}{Proyecto abierto: observador de estado}
+\objetivos Sustituir la derivada filtrada por un observador basado en el modelo.
+\procedimiento
+\begin{enumerate}
+  \item Discretizar el modelo lineal: $A_d=e^{AT_s}$, $B_d=\int_0^{T_s}e^{A\tau}B\,\dd\tau$ (véase la sección~7 de \code{examples.m}).
+  \item Diseñar un observador de Luenberger $\hat{\vect s}_{k+1}=A_d\hat{\vect s}_k+B_dF_k+L(\vect y_k-C\hat{\vect s}_k)$ con polos 3--5 veces más rápidos que el lazo, o un filtro de Kalman estacionario tomando como varianzas de medida $q^2/12+\sigma^2$.
+  \item Implementarlo como modo 6 en \code{cp\_controller\_block.m}, con \code{persistent shat}, y comparar con el modo 1 con ruido activado.
+  \item Probar a realimentar solo $x$ (observable) o solo $\theta$ (no observable).
+\end{enumerate}
+\entregables Código del modo nuevo, comparación de la varianza de $F$ y del tiempo de asentamiento, y discusión del principio de separación.
+\end{practica}
