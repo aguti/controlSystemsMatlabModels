@@ -1,0 +1,61 @@
+% Oblique 3D sketch of the rotary (Furuta) pendulum: z up, arm in the xy plane.
+\begin{tikzpicture}[x={(1cm,0cm)},y={(0.55cm,0.38cm)},z={(0cm,1cm)},>=Latex,scale=1.05,
+  every node/.style={font=\small}]
+\pgfmathsetmacro{\th}{-28}      % arm angle [deg]
+\pgfmathsetmacro{\al}{28}       % pendulum angle [deg]
+\pgfmathsetmacro{\Lr}{2.6}
+\pgfmathsetmacro{\Lp}{2.9}
+\pgfmathsetmacro{\tx}{\Lr*cos(\th)}
+\pgfmathsetmacro{\ty}{\Lr*sin(\th)}
+\pgfmathsetmacro{\ex}{\tx-\Lp*sin(\al)*sin(\th)}
+\pgfmathsetmacro{\ey}{\ty+\Lp*sin(\al)*cos(\th)}
+\pgfmathsetmacro{\ez}{\Lp*cos(\al)}
+% base plate
+\begin{scope}[canvas is xy plane at z=-2.9]
+  \fill[gray!12] (-2.2,-2.6) rectangle (3.6,2.6);
+  \draw[gray!50] (-2.2,-2.6) rectangle (3.6,2.6);
+\end{scope}
+% motor body (cylinder)
+\begin{scope}[canvas is xy plane at z=-2.9] \path coordinate (b1) at (-0.55,0) coordinate (b2) at (0.55,0); \end{scope}
+\fill[c1!25!gray!60] (-0.55,0,-2.9) -- (-0.55,0,-0.35) -- (0.55,0,-0.35) -- (0.55,0,-2.9) -- cycle;
+\begin{scope}[canvas is xy plane at z=-2.9]
+  \fill[c1!25!gray!60] (0,0) circle (0.55);
+\end{scope}
+\draw[gray!60!black] (-0.55,0,-2.9) -- (-0.55,0,-0.35) (0.55,0,-2.9) -- (0.55,0,-0.35);
+\begin{scope}[canvas is xy plane at z=-0.35]
+  \fill[c1!15!gray!40,draw=gray!60!black] (0,0) circle (0.55);
+\end{scope}
+\node[white,font=\footnotesize\bfseries] at (0,0,-1.6) {DC};
+% hub
+\fill[gray!45] (-0.18,0,-0.35) rectangle (0.18,0,0);
+% swept circle of the arm tip and theta reference
+\begin{scope}[canvas is xy plane at z=0]
+  \draw[gray,densely dotted] (0,0) circle (\Lr);
+  \draw[gray] (0,0) -- (\Lr+0.5,0) node[pos=1,right,black]{$\theta=0$};
+  \draw[->,c4,thick] (2.0,0) arc (0:\th:2.0);
+  \node[c4] at ({2.45*cos(\th/2)},{2.45*sin(\th/2)}) {$\theta$};
+\end{scope}
+% shadow of the pendulum on the plate
+\draw[gray!35,line width=3.5pt,line cap=round] (0,0,-2.9) -- (\tx,\ty,-2.9);
+\draw[gray!45,line width=2.2pt,line cap=round] (\tx,\ty,-2.9) -- (\ex,\ey,-2.9);
+% upright reference at the arm tip
+\draw[gray,dashed] (\tx,\ty,0) -- (\tx,\ty,\Lp+0.3);
+% arm
+\draw[line width=5pt,c1,line cap=round] (0,0,0) -- (\tx,\ty,0);
+\node[c1,anchor=south east] at (-0.15,0,0.2) {brazo $L_r$};
+% pendulum
+\draw[line width=3.5pt,c2,line cap=round] (\tx,\ty,0) -- (\ex,\ey,\ez);
+\fill[c2] (\ex,\ey,\ez) circle (0.12);
+\fill[white,draw=black] (\tx,\ty,0) circle (0.07);
+\node[c2,right] at ({0.5*(\tx+\ex)+0.15},{0.5*(\ty+\ey)},{0.5*\ez}) {péndulo $L_p$};
+% alpha arc (in the plane of the pendulum)
+\draw[->,c4,thick] plot[domain=0:\al,samples=12]
+  ({\tx-1.3*sin(\x)*sin(\th)},{\ty+1.3*sin(\x)*cos(\th)},{1.3*cos(\x)});
+\node[c4] at ({\tx-1.75*sin(\al/2)*sin(\th)},{\ty+1.75*sin(\al/2)*cos(\th)},{1.75*cos(\al/2)}) {$\alpha$};
+% motor voltage
+\draw[->,thick] (-2.0,0,-1.6) -- (-0.65,0,-1.6) node[pos=0,left]{$V$};
+% axes
+\draw[->,gray] (-1.9,-2.1,-2.9) -- (-0.9,-2.1,-2.9) node[right]{$x$};
+\draw[->,gray] (-1.9,-2.1,-2.9) -- (-1.9,-1.1,-2.9) node[above]{$y$};
+\draw[->,gray] (-1.9,-2.1,-2.9) -- (-1.9,-2.1,-1.9) node[above]{$z$};
+\end{tikzpicture}

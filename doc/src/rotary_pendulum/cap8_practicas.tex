@@ -1,0 +1,180 @@
+\chapter{Prácticas guiadas}
+\label{cap:practicas}
+
+Las prácticas están ordenadas de menor a mayor dificultad y siguen el mismo esquema que las del péndulo lineal: objetivos, procedimiento con el código necesario, cuestiones y entregables. Al empezar cada sesión conviene ejecutar:
+\begin{lstlisting}
+clear; close all; rp = RotaryPendulum(); rp.clearSignals();
+\end{lstlisting}
+Los valores que se citan como referencia corresponden a los parámetros por defecto. Recuerda que la interfaz de código trabaja en radianes.
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:explora}
+\begin{practica}{Exploración en lazo abierto y validación del modelo}
+\objetivos
+\begin{itemize}
+  \item Familiarizarse con la interfaz y la animación 3D.
+  \item Comprobar los polos del modelo lineal con ensayos sobre el modelo no lineal.
+\end{itemize}
+\procedimiento
+\begin{enumerate}
+  \item Caída libre desde casi arriba, sin control:
+\begin{lstlisting}
+rp.setMode('open'); rp.setInitialState([0 0 deg2rad(1) 0]);
+res = rp.run(1.5); rp_plot_results(res); rp.animate(res, 0.25);
+\end{lstlisting}
+  Ajustar $\alpha(t)\approx\alpha_0\cosh(pt)$ a los primeros \SI{0.3}{s} y estimar $p$.
+  \item Oscilación libre colgando: \code{rp.setInitialState([0 0 pi-0.2 0]); res = rp.run(20);}. Medir la frecuencia y el decremento logarítmico; observar qué hace el brazo mientras oscila el péndulo.
+  \item Repetir con el brazo prácticamente bloqueado (\code{rp.setParam('Jh', 1)}) y comparar con $\omega_0=\sqrt{m_pgl_p/\Ja}$.
+  \item Aplicar \SI{1}{V} constante con \code{rp.setVoltage(1)} en modo \code{'open'} desde el reposo colgando. Medir la velocidad final del brazo.
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item ¿Coincide $p$ con el polo inestable de la tabla~\ref{tab:polos} ($12{,}74$)?
+  \item Explicar por qué la frecuencia con el brazo libre (\SI{2.06}{Hz}) es mayor que con el brazo bloqueado (\SI{1.70}{Hz}).
+  \item Deducir la velocidad final del apartado 4 a partir de~\eqref{eq:motor} y $b_{\text{eq}}$. ¿Qué papel juega la fricción de Coulomb?
+\end{enumerate}
+\entregables Gráficas de los ensayos y tabla comparativa entre teoría y simulación.
+\end{practica}
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:ident}
+\begin{practica}{Identificación con una señal chirp}
+\objetivos Obtener la respuesta en frecuencia del sistema colgante a partir de datos y compararla con la figura~\ref{fig:bode}.
+\procedimiento
+\begin{enumerate}
+  \item Aplicar en lazo abierto un chirp de tensión de \SI{1}{V} entre \SI{0.5}{Hz} y \SI{5}{Hz} durante \SI{20}{s} (sección~7 de \code{examples.m}):
+\begin{lstlisting}
+T = 20; tt = (0:rp.P.h:T)'; f0 = 0.5; f1 = 5;
+u = sin(2*pi*(f0*tt + (f1-f0)/(2*T)*tt.^2));
+rp.setInitialState([0 0 pi 0]); rp.setMode('open');
+rp.setVoltageSignal(tt, u); res = rp.run(T); rp.clearSignals();
+\end{lstlisting}
+  \item Estimar $\Theta/V$ y $A/V$ dividiendo las FFT (o con \code{tfestimate}).
+  \item Localizar la resonancia y la antirresonancia y compararlas con el modelo lineal.
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item ¿Por qué la antirresonancia de $\Theta/V$ coincide con la frecuencia del péndulo con el brazo bloqueado?
+  \item ¿Qué efecto tiene la fricción de Coulomb del brazo con amplitudes pequeñas? Repetir con \SI{0.3}{V}.
+\end{enumerate}
+\entregables Bode experimental superpuesto al teórico.
+\end{practica}
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:lqr}
+\begin{practica}{Diseño de un LQR: influencia de $Q$ y $R$}
+\objetivos Entender el compromiso entre rapidez, esfuerzo y recorrido del brazo.
+\procedimiento
+\begin{enumerate}
+  \item Desde $\alpha_0=10^\circ$, repetir el ensayo con $Q_\theta\in\{5,20,80\}$ y con $R\in\{0{,}2,\ 1,\ 5\}$ (figura~\ref{fig:pesos}).
+  \item Repetir con $Q_\alpha\in\{10,50,250\}$ y comprobar que apenas cambia nada. ¿Por qué?
+  \item Aplicar la regla de Bryson con $\alpha_{\max}=5^\circ$, $\theta_{\max}=30^\circ$ y $V_{\max}=\SI{8}{V}$. Comparar con el diseño por defecto.
+  \item Golpes de amplitud creciente en la punta (\SI{0.05}{N} a \SI{0.3}{N} durante \SI{50}{ms}) con \code{setDisturbanceSignal}: encontrar el mayor que se recupera.
+  \item En la GUI, cambiar $Q$ y $R$ en vivo mientras se dan empujones con la barra espaciadora.
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item Comprobar que $K_\theta=-\sqrt{Q_\theta/R}$ en todos los diseños y justificarlo.
+  \item ¿Qué ocurre cuando el diseño satura el amplificador? ¿Cuál es el máximo $\alpha_0$ recuperable?
+\end{enumerate}
+\entregables Tabla de diseños con sus métricas y una recomendación justificada.
+\end{practica}
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:segui}
+\begin{practica}{Seguimiento de referencias y fase no mínima}
+\objetivos Observar la respuesta inversa del brazo y cuantificar los límites de seguimiento.
+\procedimiento
+\begin{enumerate}
+  \item Aplicar un escalón de $45^\circ$ con y sin el limitador de pendiente (\code{rp.setParamRaw('ref\_rate', 1e6)}) y medir el retroceso inicial (figura~\ref{fig:lqrstep}).
+  \item Referencias senoidales de $\pm45^\circ$ a 0,1; 0,2; 0,5 y \SI{1}{Hz}: medir la ganancia y el desfase y dibujar el Bode del lazo cerrado.
+  \item Implementar el modo 5 con acción integral (sección~\ref{sec:nuevo_modo}) y repetir el escalón con la fricción de Coulomb multiplicada por cuatro (\code{rp.setParamRaw('Tc', 2e-3)}).
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item Relacionar el ancho de banda medido con el cero de fase no mínima en $z=10{,}66$.
+  \item ¿Desaparece la respuesta inversa con el integrador? ¿Puede desaparecer con algún controlador?
+  \item Proponer una prealimentación que reduzca el retraso con referencias senoidales.
+\end{enumerate}
+\entregables Gráficas, Bode del lazo cerrado y comparación con y sin integral.
+\end{practica}
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:pid}
+\begin{practica}{PID+PD frente a LQR y robustez}
+\objetivos Ajustar el controlador clásico, compararlo con el óptimo y evaluar la sensibilidad a errores de modelo.
+\procedimiento
+\begin{enumerate}
+  \item Con el modo \code{'pid'}, empezar con $K_{p\theta}=K_{d\theta}=0$ y estabilizar solo el péndulo. Observar cómo deriva el brazo (y cómo da vueltas).
+  \item Añadir $K_{p\theta}$ y $K_{d\theta}$, primero con signo negativo y luego positivo. Calcular los polos de $A-BK_{\text{PID}}$ en cada caso.
+  \item Sin recalcular $K$, cambiar la masa y la longitud del péndulo (sección~\ref{sec:robustez}):
+\begin{lstlisting}
+Knom = rp.P.K_up;
+rp.setParam('Lp', 0.18); rp.setParamRaw('K_up', Knom);
+\end{lstlisting}
+  y encontrar el intervalo de $L_p$ que estabiliza cada controlador.
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item ¿Puede un PID+PD reproducir exactamente el LQR? Razonar sobre la estructura de ambas leyes.
+  \item ¿Cuál es más robusto frente a $L_p$? ¿Por qué el parámetro crítico es $L_p$ y no $m_p$?
+\end{enumerate}
+\entregables Ajuste final, polos, mapa de estabilidad frente a $L_p$.
+\end{practica}
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:swing}
+\begin{practica}{\emph{Swing-up} por energía}
+\objetivos Entender el control no lineal basado en energía, la inversión de la dinámica y la conmutación entre controladores.
+\procedimiento
+\begin{enumerate}
+  \item Ejecutar el \emph{swing-up} por defecto (figura~\ref{fig:swingup}) y verificar que $E(t)$ crece hasta la captura. Verlo a un cuarto de velocidad con \code{rp.animate(res, 0.25)}.
+  \item Barrer $k_E\in\{100,200,400,800\}$ y $a_{\max}\in\{40,80,120\}$. Registrar el tiempo de captura y $|\theta|_{\max}$.
+  \item Eliminar el recentrado (\code{kx\_sw = 0}, \code{kv\_sw = 0}) y observar cuántas vueltas da el brazo.
+  \item Poner \code{E\_ref = 0} y repetir con $V_{\max}=8$ y \SI{10}{V} (\code{rp.setParam('Vmax', 8)}). Explicar por qué el péndulo se queda oscilando sin llegar arriba.
+  \item Sustituir la inversión de la dinámica por una ley simple $V=k\,E\,\ald\cos\alpha$, saturada a $\pm\SI{10}{V}$, y comparar.
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item Demostrar que $\dot V_L\le0$ con la ley de la sección~\ref{sec:swingup} sin saturación ni recentrado.
+  \item ¿Por qué el brazo necesita recentrado aquí, si no tiene topes?
+  \item ¿Qué ventaja aporta convertir la aceleración pedida en tensión mediante el modelo?
+\end{enumerate}
+\entregables Mapa (tiempo de captura y recorrido del brazo) frente a $(k_E,a_{\max})$.
+\end{practica}
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:down}
+\begin{practica}{Posicionado con anti-balanceo}
+\objetivos Llevar el brazo a una posición sin oscilación residual del péndulo.
+\procedimiento
+\begin{enumerate}
+  \item Reproducir la figura~\ref{fig:down}. Repetirla sin limitador de pendiente y con una referencia cuadrada de $\pm90^\circ$ a \SI{0.2}{Hz}, comparando con las ganancias del péndulo a cero:
+\begin{lstlisting}
+Kn = rp.P.K_dn; Kn(3:4) = 0;
+rp.setParamRaw('K_dn', Kn);        % sin recalcular el LQR
+\end{lstlisting}
+  \item Diseñar un \emph{input shaper} ZV para la referencia (dos escalones separados medio periodo del modo pendular) y compararlo con el LQR.
+  \item Duplicar la longitud del péndulo y repetir. ¿Cuándo empieza a merecer la pena el anti-balanceo?
+\end{enumerate}
+\preguntas Comparar tiempo de posicionamiento, balanceo residual y sensibilidad a $L_p$ de cada método. ¿Por qué la ventaja del anti-balanceo es menor que en la grúa del péndulo lineal?
+\end{practica}
+
+% ----------------------------------------------------------------
+\refstepcounter{practica}\label{pr:obs}
+\begin{practica}{Instrumentación y observador de estado}
+\objetivos Cuantificar el efecto de la cuantización y del filtro derivativo, y sustituir la derivada filtrada por un observador.
+\procedimiento
+\begin{enumerate}
+  \item Reducir la resolución de los encoders a 1024, 512 y 256 cuentas por vuelta y medir el rizado de la tensión en equilibrio.
+  \item Barrer $\tau_v\in\{1,2,5,10,20\}$\,ms. Representar la desviación típica de $V$ frente al tiempo de asentamiento.
+  \item Diseñar un observador de Luenberger discreto con los polos 3--5 veces más rápidos que el lazo, o un filtro de Kalman estacionario con varianza de medida $q^2/12+\sigma^2$. Implementarlo como modo 6 en \code{rp\_controller\_block.m} con \code{persistent shat}.
+  \item Comparar el modo 6 con el modo 1, con y sin ruido.
+\end{enumerate}
+\preguntas
+\begin{enumerate}
+  \item ¿Se puede construir el observador usando solo la medida de $\alpha$? (Véase el análisis de observabilidad.)
+  \item ¿Qué resolución mínima de encoder recomendaríais para una maqueta real?
+\end{enumerate}
+\entregables Código del modo nuevo, comparación del rizado de $V$ y del tiempo de asentamiento.
+\end{practica}

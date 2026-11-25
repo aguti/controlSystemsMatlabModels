@@ -1,0 +1,42 @@
+\chapter{Sensores y muestreo}
+\label{cap:sensores}
+
+\section{Encoders}
+
+Ambos ángulos se miden con encoders incrementales de 512 líneas en cuadratura, es decir, $2048$ cuentas por vuelta:
+\begin{equation}
+  q = \frac{2\pi}{2048} = \SI{3.07}{mrad} = 0{,}176^\circ .
+\end{equation}
+En el modelo, cada medida pasa por un bloque \emph{Quantizer} de paso $q$, un ruido gaussiano opcional ($\sigma=\SI{1}{mrad}$, activable con \code{noise\_on}) y un muestreo a $T_s=\SI{2}{ms}$.
+
+\begin{nota}
+La resolución angular parece buena, pero el péndulo mide solo \SI{12.9}{cm}: un paso de cuantización equivale a \SI{0.4}{mm} en la punta. Lo que de verdad limita es la \emph{derivada}: un salto de una cuenta en un periodo de muestreo se interpreta como una velocidad de $q/T_s=\SI{1.5}{rad/s}$.
+\end{nota}
+
+\section{Elección del periodo de muestreo}
+
+El polo inestable está en $p=\SI{12.74}{rad/s}$ y el lazo cerrado con el LQR por defecto llega hasta \SI{22}{rad/s}. Una regla habitual es muestrear entre 20 y 40 veces más rápido que el polo más rápido del lazo: $\omega_s\approx\SIrange{440}{880}{rad/s}$, es decir, $f_s\approx\SIrange{70}{140}{Hz}$. Los \SI{500}{Hz} elegidos dan un margen amplio, coherente con lo que se usa en maquetas reales.
+
+\section{Estimación de velocidades}
+
+Como solo se miden ángulos, el controlador estima $\thd$ y $\ald$ con una derivada filtrada de primer orden, discretizada de forma exacta:
+\begin{equation}
+  v_k = a\,v_{k-1} + (1-a)\,\frac{y_k-y_{k-1}}{T_s},\qquad a = e^{-T_s/\tau_v},
+\end{equation}
+con $\tau_v=\SI{5}{ms}$. Equivale a $\dfrac{s}{\tau_vs+1}$: derivada pura hasta \SI{32}{Hz} y filtro paso bajo por encima. Es más rápido que el del péndulo lineal ($\tau_v=\SI{10}{ms}$) porque la dinámica del Furuta es unas dos veces más rápida.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[manual,height=5cm,xmin=0,xmax=1,xlabel={$t$ [s]},ylabel={$\ald$ [rad/s]},legend pos=south west,legend columns=3]
+\addplot[gray!60,const plot,line width=0.5pt] table[x=t,y=raw]{data/velest.dat};
+\addplot[c2] table[x=t,y=filt]{data/velest.dat};
+\addplot[black,dashed] table[x=t,y=true]{data/velest.dat};
+\legend{diferencia directa,filtrada ($\tau_v=\SI{5}{ms}$),real}
+\end{axis}
+\end{tikzpicture}
+\caption{Estimación de $\ald$ a partir de $\alpha=0{,}3\sin(2\pi\,1{,}5\,t)$ cuantizado con 2048 cuentas por vuelta. La diferencia directa salta entre múltiplos de \SI{1.5}{rad/s}; la filtrada sigue a la real con un retraso de unos \SI{5}{ms}.}
+\label{fig:velest}
+\end{figure}
+
+El compromiso es el de siempre: con más filtrado ($\tau_v$ mayor) la estimación es más suave, pero el retraso de fase resta margen al lazo. Con los parámetros por defecto, la cuantización basta para que la tensión de equilibrado tenga un rizado de \SI{1.1}{V} eficaces. Al activar el ruido de los encoders sube a \SI{1.18}{V}. Este rizado es el punto de partida natural para la práctica del observador (capítulo~\ref{cap:practicas}).

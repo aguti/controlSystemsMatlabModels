@@ -1,0 +1,86 @@
+\chapter{Análisis lineal}
+\label{cap:analisis}
+
+\section{Linealización}
+
+Hay dos equilibrios con el brazo en reposo: el invertido ($\alpha=0$) y el colgante ($\alpha=\pi$). Sea $c_0=\cos\alpha_0=\pm1$ y $\delta\alpha=\alpha-\alpha_0$. Para pequeñas desviaciones, $\sin\alpha\approx c_0\,\delta\alpha$ y $\cos\alpha\approx c_0$. Los términos centrífugos y de Coriolis de~\eqref{eq:nl} son productos de dos cantidades pequeñas y desaparecen, así que el modelo lineal tiene la misma estructura que el del carro-péndulo:
+\begin{equation}
+  \underbrace{\begin{bmatrix} J_0 & hc_0\\ hc_0 & \Ja\end{bmatrix}}_{\vect M_0}
+  \begin{bmatrix}\thdd\\ \delta\aldd\end{bmatrix}
+  =
+  \begin{bmatrix} \dfrac{k_t}{R_m}V - b_{\text{eq}}\thd\\[1ex] m_pgl_pc_0\,\delta\alpha - D_p\,\delta\ald\end{bmatrix},
+  \qquad b_{\text{eq}} = D_r + \frac{k_tk_m}{R_m}.
+  \label{eq:lin}
+\end{equation}
+Despejando las aceleraciones con $\vect M_0^{-1}$ y tomando $\vect s=[\theta,\ \thd,\ \delta\alpha,\ \delta\ald]^\top$ se obtiene $\dot{\vect s}=A\vect s+BV$, $\vect y=C\vect s$ con $C=\left[\begin{smallmatrix}1&0&0&0\\0&0&1&0\end{smallmatrix}\right]$. Es lo que calcula \code{rp\_linearize(P, alpha0)}. La fricción de Coulomb se desprecia.
+
+\begin{ejemplo}{Matrices numéricas (\code{rp\_linearize})}
+Para la posición invertida:
+\[
+A_\uparrow=\begin{bmatrix}0&1&0&0\\ 0&-1{,}115&-53{,}96&0{,}018\\ 0&0&0&1\\ 0&1{,}102&167{,}4&-0{,}055\end{bmatrix},\qquad
+B_\uparrow=\begin{bmatrix}0\\ 17{,}98\\ 0\\ -17{,}77\end{bmatrix}.
+\]
+El signo negativo de $B_\uparrow(4)$ indica que una tensión positiva, que acelera el brazo hacia $+\theta$, hace caer el péndulo hacia atrás ($\aldd<0$), como un vaso sobre una bandeja que se mueve. En la posición colgante cambian de signo los términos de $\alpha$: $A_\downarrow(4,3)=-167{,}4$ y $B_\downarrow(4)=+17{,}77$.
+\end{ejemplo}
+
+\section{Polos en lazo abierto}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Equilibrio & Polos [rad/s] & Interpretación\\
+\midrule
+Invertido & $0$, $-0{,}758$, $-13{,}16$, $+12{,}74$ & inestable: el péndulo cae con constante de tiempo $\approx\SI{78}{ms}$\\
+Colgante & $0$, $-0{,}761$, $-0{,}20\pm j12{,}93$ & oscilación a \SI{2.06}{Hz}, muy poco amortiguada ($\zeta=0{,}016$)\\
+\bottomrule
+\end{tabular}
+\caption{Polos del modelo lineal en lazo abierto.}
+\label{tab:polos}
+\end{table}
+
+El polo en el origen corresponde al ángulo del brazo (integrador: si se aplica tensión constante el brazo no se detiene). El polo en $-0{,}76$ es la dinámica mecánica del brazo, dominada por la fuerza contraelectromotriz. Con el brazo bloqueado ($J_0\to\infty$), el péndulo oscilaría a $\omega_0=\sqrt{m_pgl_p/\Ja}=\SI{10.68}{rad/s}$ (\SI{1.70}{Hz}). Con el brazo libre la frecuencia sube a \SI{12.93}{rad/s}, porque el brazo retrocede cuando el péndulo avanza y la inercia efectiva del péndulo disminuye.
+
+\section{Funciones de transferencia}
+
+\paragraph{Tensión a ángulo del brazo.} En la posición invertida,
+\begin{equation}
+  G_\theta^\uparrow(s)=\frac{\Theta(s)}{V(s)} = \frac{17{,}98\,(s-10{,}66)(s+10{,}70)}{s\,(s+0{,}758)(s+13{,}16)(s-12{,}74)} .
+\end{equation}
+Los ceros están en $\pm\omega_0$ (aproximadamente): uno de ellos en el semiplano derecho. El sistema es de \textbf{fase no mínima}. Para llevar el brazo a $+\theta$ con el péndulo equilibrado, primero hay que inclinar el péndulo hacia delante, y para eso el brazo debe retroceder. Es el mismo fenómeno que en el carro-péndulo; aquí lo veremos en los escalones de referencia (figura~\ref{fig:lqrstep}).
+
+En la posición colgante los ceros se van al eje imaginario, $\pm j10{,}68$: a la frecuencia propia del péndulo con el brazo bloqueado, el péndulo «absorbe» el movimiento y el brazo casi no responde (antirresonancia).
+
+\paragraph{Tensión a ángulo del péndulo.}
+\begin{equation}
+  G_\alpha^\uparrow(s)=\frac{A(s)}{V(s)} = \frac{-17{,}77\,s}{(s+0{,}758)(s+13{,}16)(s-12{,}74)} .
+\end{equation}
+El cero en el origen cancela el polo integrador: una tensión constante no inclina el péndulo en régimen permanente, porque el péndulo solo «siente» la aceleración del brazo, no su posición.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=1 by 2,vertical sep=0.4cm,xticklabels at=edge bottom},
+  manual,height=4.3cm,xmode=log,xmin=0.1,xmax=100]
+\nextgroupplot[ylabel={Magnitud [dB]},legend pos=north east]
+\addplot[c1] table[x=f,y=mag]{data/bode_dn_th.dat};
+\addplot[c2] table[x=f,y=mag]{data/bode_dn_al.dat};
+\legend{$\Theta/V$,$A/V$}
+\draw[gray,dashed] (axis cs:1.70,-90) -- (axis cs:1.70,40) node[pos=0.08,right,font=\footnotesize]{\SI{1.70}{Hz}};
+\draw[gray,dashed] (axis cs:2.06,-90) -- (axis cs:2.06,40);
+\nextgroupplot[ylabel={Fase [$^\circ$]},xlabel={$f$ [Hz]}]
+\addplot[c1] table[x=f,y=ph]{data/bode_dn_th.dat};
+\addplot[c2] table[x=f,y=ph]{data/bode_dn_al.dat};
+\end{groupplot}
+\end{tikzpicture}
+\caption{Diagrama de Bode del modelo colgante: resonancia del péndulo a \SI{2.06}{Hz} y antirresonancia de $\Theta/V$ a \SI{1.70}{Hz}.}
+\label{fig:bode}
+\end{figure}
+
+\section{Controlabilidad y observabilidad}
+
+\begin{itemize}
+  \item \textbf{Controlabilidad}: la matriz $\mathcal C=[B,\ AB,\ A^2B,\ A^3B]$ tiene rango 4 en ambos equilibrios (número de condición $\approx800$). Con un solo motor se controlan los dos ángulos.
+  \item \textbf{Observabilidad desde $\theta$}: rango 4. Midiendo solo el brazo se podría reconstruir todo el estado, aunque mal condicionado.
+  \item \textbf{Observabilidad desde $\alpha$}: rango 3. Midiendo solo el péndulo \emph{no} se puede saber dónde está el brazo: $\theta$ no aparece en las ecuaciones (la dinámica es invariante ante rotaciones del conjunto). Por eso el encoder del motor es imprescindible.
+\end{itemize}

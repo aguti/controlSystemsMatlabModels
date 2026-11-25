@@ -1,0 +1,92 @@
+\chapter{Tabla de parámetros}
+\label{cap:parametros}
+
+\begin{table}[H]
+\centering\footnotesize
+\begin{tabularx}{\linewidth}{@{}p{4.1cm}p{3.6cm}p{2.1cm}X@{}}
+\toprule
+Campo de \code{P} & Valor & Unidad & Descripción\\
+\midrule
+\multicolumn{4}{@{}l}{\textit{Mecánica}}\\
+\code{mr}, \code{Lr}, \code{Jh} & 0,095 / 0,085 / $6\cdot10^{-6}$ & kg, m, kg\,m$^2$ & brazo y buje\\
+\code{mp}, \code{Lp} & 0,024 / 0,129 & kg, m & péndulo\\
+\code{Jr}, \code{Jp}, \code{J0}, \code{Ja}, \code{lp} & derivados (\code{rp\_design}) & -- & ecuación~\eqref{eq:inercias}\\
+\code{Dr}, \code{Tc}, \code{w\_eps} & $10^{-4}$ / $5\cdot10^{-4}$ / 0,05 & N\,m\,s/rad, N\,m, rad/s & fricción del brazo\\
+\code{Dp} & $5\cdot10^{-6}$ & N\,m\,s/rad & fricción del pivote\\
+\multicolumn{4}{@{}l}{\textit{Motor y sensores}}\\
+\code{Rm}, \code{kt}, \code{km} & 8,4 / 0,042 / 0,042 & $\Omega$, N\,m/A, V\,s/rad & motor de continua\\
+\code{Vmax} & 10 & V & saturación del amplificador\\
+\code{res\_th}, \code{res\_al} & $2\pi/2048$ & rad & resolución de los encoders\\
+\code{noise\_on}, \code{noise\_th}, \code{noise\_al} & 0 / $10^{-3}$ / $10^{-3}$ & --, rad, rad & ruido de medida\\
+\code{Ts}, \code{h}, \code{tau\_v} & 0,002 / 0,001 / 0,005 & s & muestreo, paso del solver, filtro derivativo\\
+\multicolumn{4}{@{}l}{\textit{Referencia y seguridad}}\\
+\code{th\_ref\_max}, \code{ref\_rate} & $\pi$ / 2 & rad, rad/s & saturación y pendiente de la referencia\\
+\code{th\_safe} & $2\pi$ & rad & umbral del corte de seguridad\\
+\code{x0} & $[0,0,0{,}1,0]^\top$ & -- & estado inicial\\
+\multicolumn{4}{@{}l}{\textit{Controladores}}\\
+\code{Qup}, \code{Rup} & diag(20; 0,5; 50; 0,5) / 1 & -- & LQR arriba\\
+\code{Qdn}, \code{Rdn} & diag(20; 0,5; 10; 0,05) / 1 & -- & LQR modo \code{down}\\
+\code{k\_E}, \code{a\_max} & 200 / 80 & --, rad/s$^2$ & \emph{swing-up}\\
+\code{kx\_sw}, \code{kv\_sw} & 25 / 1 & -- & recentrado durante el \emph{swing-up}\\
+\code{E\_ref} & 0,2 & -- & energía objetivo, fracción de $2m_pgl_p$\\
+\code{al\_catch}, \code{al\_release} & 0,40 / 0,9 & rad & conmutación con histéresis\\
+\code{Kp\_al}, \code{Ki\_al}, \code{Kd\_al} & 50 / 0 / 4 & -- & PID del péndulo\\
+\code{Kp\_th}, \code{Kd\_th}, \code{I\_max} & 4 / 2 / 1 & -- & PD del brazo y anti-windup\\
+\bottomrule
+\end{tabularx}
+\caption{Parámetros por defecto (\code{rp\_params.m}).}
+\end{table}
+
+\chapter{Validación del modelo Simulink}
+\label{cap:validacion}
+
+Las gráficas de este manual se obtuvieron simulando \code{rotpend\_sim.slx} (MATLAB R2025b, ode4, $h=\SI{1}{ms}$) con \code{data/generate\_data.m}. Para detectar errores de implementación, los mismos escenarios se ejecutaron también en una réplica independiente en Python (\code{python\_reference\_sim.py}) y se compararon muestra a muestra. La réplica no modela el limitador de pendiente de la referencia, así que en esta comparación se desactivó.
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}lrrX@{}}
+\toprule
+Escenario & RMS $\Delta\theta$ [$^\circ$] & RMS $\Delta\alpha$ [$^\circ$] & Métrica (Python / Simulink)\\
+\midrule
+LQR desde $\alpha_0=10^\circ$ & 0,075 & 0,023 & asentamiento a $1^\circ$: 0,40 / 0,41 s; $V_{\max}$ 8,8 / 8,8 V\\
+LQR, escalón $45^\circ$ & 0,235 & 0,036 & retroceso inicial $-3{,}4$ / $-3{,}4^\circ$\\
+LQR, golpe \SI{0.1}{N}$\times$\SI{50}{ms} & 0,257 & 0,068 & asentamiento 1,90 / 1,90 s\\
+Swing-up + LQR & 0,111 & 0,249 & captura en 1,888 / 1,888 s; $|\theta|_{\max}$ 42,6 / 42,6$^\circ$\\
+PID desde $\alpha_0=10^\circ$ & 0,057 & 0,023 & asentamiento 0,35 / 0,35 s\\
+PID, escalón $45^\circ$ & 0,108 & 0,020 & retroceso inicial $-3{,}4$ / $-3{,}4^\circ$\\
+\code{down}, escalón $45^\circ$ & 0,025 & 0,025 & balanceo residual 0,41 / 0,41$^\circ$\\
+\code{down} sin anti-balanceo & 0,025 & 0,033 & balanceo residual 1,60 / 1,60$^\circ$\\
+\bottomrule
+\end{tabularx}
+\caption{Comparación entre la réplica en Python y el modelo Simulink.}
+\label{tab:validacion}
+\end{table}
+
+Las discrepancias son del orden de la resolución de los encoders ($0{,}18^\circ$). Además se comprobó que una sesión en vivo (\code{start}/\code{stop}, también lanzada desde la GUI) reproduce exactamente la misma trayectoria que \code{run}.
+
+Para repetir la validación:
+\begin{lstlisting}
+cd src/rotary_pendulum/validation
+run_validation                         % MATLAB: escribe results/*.csv
+!python3 compare_with_python.py        % compara con la réplica en Python
+\end{lstlisting}
+
+\chapter{Resolución de problemas}
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}p{4.8cm}X@{}}
+\toprule
+Síntoma & Solución\\
+\midrule
+\emph{Undefined variable P} al pulsar \emph{Run} en Simulink & Ejecutar \code{RotaryPendulum()} o \code{P = rp\_design(rp\_params())}. La \code{InitFcn} lo hace sola si el modelo se ha generado con el script.\\
+Los cambios en \code{rp\_*\_block.m} no tienen efecto & Volver a ejecutar \code{rp\_build\_model}: el código se copia dentro del modelo al generarlo.\\
+\code{setParamRaw('mp', \ldots)} no cambia nada & Las inercias son derivadas: usar \code{setParam} (recalcula inercias y ganancias) y, si se quieren mantener las ganancias, imponerlas después con \code{setParamRaw('K\_up', K)}.\\
+El péndulo no se captura en el \emph{swing-up} y oscila por debajo de la vertical & La energía no llega al objetivo: subir \code{E\_ref} (fracción de $2m_pgl_p$) o \code{k\_E}. Con \code{E\_ref = 0} la captura falla si la tensión o la fricción se alejan de los valores nominales (sección~\ref{sec:swingup}).\\
+La simulación en vivo tarda en arrancar & La primera ejecución compila el modelo (unos segundos). Las siguientes arrancan enseguida.\\
+«SAFETY» en la GUI & El brazo superó $\pm360^\circ$. Desmarcar y marcar \emph{Control enabled}, o cambiar de modo.\\
+La animación va a saltos & Bajar \code{rp.TelemetryRate} o la velocidad de simulación. La simulación no se ve afectada: solo se pierden fotogramas.\\
+\bottomrule
+\end{tabularx}
+\caption{Problemas habituales.}
+\end{table}

@@ -1,0 +1,47 @@
+K_up = [-4.472 -1.978 -50.29 -4.417]
+K_dn = [4.472 1.113 1.894 -0.05471]
+A_up = [0 1 0 0;0 -1.115 -53.96 0.01777;0 0 0 1;0 1.102 167.4 -0.05512]
+B_up = [0;17.98;0;-17.77]
+A_dn = [0 1 0 0;0 -1.115 -53.96 -0.01777;0 0 0 1;0 -1.102 -167.4 -0.05512]
+B_dn = [0;17.98;0;17.77]
+poles_OL_up = [0 -13.16 -0.7582 12.74]
+poles_CL_up = [-22.18 -10.79 -5.563+2.716i -5.563-2.716i]
+poles_OL_dn = [0 -0.7607 -0.2045+12.93i -0.2045-12.93i]
+poles_CL_dn = [-7.507+3.205i -7.507-3.205i -2.597+11.44i -2.597-11.44i]
+J0 = 0.0004082  Ja = 0.0001331  Jr = 0.0002348  Jp = 3.328e-05  hc = 0.0001316
+beq = 0.00031  b_emf = 0.00021  wn_down = 10.68
+zpk_up_y1: zeros=[-10.7 10.66]  poles=[0 -13.16 -0.7582 12.74]  k=17.98
+zpk_up_y2: zeros=[0 5.183e-17]  poles=[0 -13.16 -0.7582 12.74]  k=-17.77
+rank_ctrb_up = 4  cond = 813
+rank_obs_up: theta only 4, alpha only 3
+zpk_dn_y1: zeros=[-0.01878+10.68i -0.01878-10.68i]  poles=[0 -0.7607 -0.2045+12.93i -0.2045-12.93i]  k=17.98
+zpk_dn_y2: zeros=[0 5.183e-17]  poles=[0 -0.7607 -0.2045+12.93i -0.2045-12.93i]  k=17.77
+rank_ctrb_dn = 4  cond = 802
+rank_obs_dn: theta only 4, alpha only 3
+poles_PID = [-13.74+13.99i -13.74-13.99i -4.402+1.398i -4.402-1.398i]
+lqr_ic: Vmax 8.79, settle1deg 0.41, max|th| 23.8
+lqr_step (rate limited): min th -0.87, settle5% 0.94, max|al| 2.22, Vmax 3.03
+lqr_push: max|al| 14.97, max|th| 57.29, Vmax 10.00, settle 1.90
+swingup: catch 1.888 s, max|th| 42.6, Vmax 10.0, E0 -0.03037
+swingup Vmax=6: catch 2.844 s, max|th| 35.1, final al 0.10
+swingup mp=0.048: catch 2.468 s, max|th| 92.8, final al -0.09
+swingup Lp=0.18: catch 1.708 s, max|th| 64.3, final al 0.09
+pid_ic: Vmax 8.74, settle 0.35
+pid_step: min th -0.84, settle5% 1.12, final th 45.89
+down_step 90: sway t>4 0.26, max sway 4.25, settle 1.16
+down_nosway 90: sway t>4 0.87, max sway 4.62
+qsweep Qth=5: K [-2.24 -1.4 -42.7 -3.71] Vmax 7.48 settle 0.49 max|th| 27.1
+qsweep Qth=20: K [-4.47 -1.98 -50.3 -4.42] Vmax 8.79 settle 0.41 max|th| 23.8
+qsweep Qth=80: K [-8.94 -3.06 -64.2 -5.72] Vmax 10.00 settle 0.65 max|th| 21.5
+rsweep 0.2: K [-10 -4.01 -84.7 -7.65] Vmax 10.00 settle 0.35
+rsweep 5: K [-2 -1.06 -35.1 -2.99] Vmax 6.13 settle 0.52
+msweep 0.012: settle 0.41 final al -0.07 stable 1
+msweep 0.048: settle 0.76 final al -0.03 stable 1
+msweep 0.072: settle 0.76 final al -0.02 stable 1
+sine 0.2 Hz: gain 0.999 lag 28.5
+sine 0.5 Hz: gain 0.905 lag 73.3
+sine 1 Hz: gain 0.657 lag 138.5
+noise: al std 0.050 deg, V std 1.18, th std 0.34 deg
+quantization only: V std 1.10
+frames at t = [0 1.2 1.6 2.15 4]
+gui run: max|th| 42.6, catch 1.888, x0 [0 0 3.14 0], CmdCtrl [2 1 0], CmdRef [0 0 0.785 0.2]

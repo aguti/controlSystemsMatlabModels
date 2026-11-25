@@ -3,7 +3,7 @@ slprj/
 *.slxc
 *.slx.autosave
 *.asv
-src/**/cartpole_sim.slx
+src/**/*_sim.slx
 
 # Python
 __pycache__/

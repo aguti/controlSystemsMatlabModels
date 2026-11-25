@@ -1,0 +1,100 @@
+\chapter{Introducción}
+\label{cap:intro}
+
+Este manual acompaña al paquete de simulación \code{rotary\_pendulum}, segundo experimento de la serie de sistemas de control tras el péndulo lineal~\cite{lineal}. Está organizado en dos partes:
+\begin{itemize}
+  \item \textbf{Parte teórica} (capítulos~\ref{cap:modelo}--\ref{cap:control}): modelo dinámico, análisis lineal, sensores y diseño de controladores.
+  \item \textbf{Parte práctica} (capítulos~\ref{cap:simulink}--\ref{cap:practicas}): el modelo Simulink, la interfaz de código, la interfaz gráfica y una serie de prácticas guiadas.
+\end{itemize}
+La estructura, la convención de nombres y la interfaz son paralelas a las del péndulo lineal, de modo que lo aprendido allí se traslada casi sin cambios. Los resultados numéricos y todas las gráficas de este manual se han obtenido simulando el modelo Simulink del paquete (MATLAB R2025b) y se han contrastado con una réplica independiente en Python (apéndice~\ref{cap:validacion}).
+
+\section{El sistema}
+
+El péndulo rotacional, o \emph{péndulo de Furuta}~\cite{furuta1992}, es la versión giratoria del carro-péndulo. Un motor de corriente continua hace girar un brazo horizontal de longitud $L_r$. En el extremo del brazo hay un pivote, cuyo eje es el propio brazo, del que cuelga un péndulo de longitud $L_p$ que oscila libremente en el plano perpendicular al brazo (figura~\ref{fig:sistema}).
+
+\begin{figure}[H]
+\centering
+\input{fig_sistema}
+\caption{Péndulo rotacional. El motor gira el brazo un ángulo $\theta$ en el plano horizontal; el péndulo forma un ángulo $\alpha$ con la vertical en el plano perpendicular al brazo.}
+\label{fig:sistema}
+\end{figure}
+
+Frente al péndulo lineal hay tres diferencias importantes:
+\begin{enumerate}
+  \item \textbf{No hay raíl}: el brazo puede girar indefinidamente, así que no existen topes físicos. Solo un corte de seguridad (por los cables) limita $|\theta|$ a una vuelta.
+  \item \textbf{La entrada es una tensión}, no una fuerza. El motor introduce una fuerza contraelectromotriz que actúa como un amortiguamiento viscoso adicional sobre el brazo.
+  \item \textbf{La dinámica es más rica}: al girar el brazo aparecen términos centrípetos y de Coriolis que acoplan ambos ejes y que no existen en el carro-péndulo.
+\end{enumerate}
+
+Igual que en el péndulo lineal, \textbf{solo se miden ángulos}: un encoder en el eje del motor mide $\theta$ y otro en el pivote mide $\alpha$. Las velocidades las estima el controlador.
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Símbolo & Significado & Convenio\\
+\midrule
+$\theta$ & ángulo del brazo [rad] & positivo antihorario visto desde arriba; no se envuelve\\
+$\alpha$ & ángulo del péndulo [rad] & $0$ = arriba, $\pi$ = colgando; $\alpha>0$ se inclina hacia $+\theta$\\
+$V$ & tensión del motor [V] & $V>0$ acelera el brazo hacia $+\theta$; saturación $\pm\SI{10}{V}$\\
+$\vect s$ & estado & $[\theta,\ \thd,\ \alpha,\ \ald]^\top$\\
+\bottomrule
+\end{tabular}
+\caption{Variables y convenio de signos.}
+\label{tab:convenio}
+\end{table}
+
+\begin{nota}
+La interfaz de código trabaja en \textbf{radianes}. La interfaz gráfica y los campos \code{*\_deg} de los resultados (\code{th\_deg}, \code{al\_deg}, \code{r\_deg}) usan grados.
+\end{nota}
+
+\section{Contenido del paquete}
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Archivo & Contenido\\
+\midrule
+\code{rp\_params.m} & Parámetros físicos, del motor, de los sensores y de los controladores.\\
+\code{rp\_linearize.m}, \code{rp\_lqr.m}, \code{rp\_design.m} & Linealización, LQR (con o sin toolbox) y cálculo de inercias y ganancias.\\
+\code{rp\_plant\_block.m} & Dinámica no lineal con motor (código del bloque \emph{MATLAB Function} de la planta).\\
+\code{rp\_controller\_block.m} & Controlador discreto con 5 modos (código del bloque del controlador).\\
+\code{rp\_ref\_block.m} & Generador de referencias del brazo.\\
+\code{rp\_build\_model.m} & Genera el modelo \code{rotpend\_sim.slx} mediante un script.\\
+\code{RotaryPendulum.m} & Clase con la interfaz de código: ensayos por lotes y control en vivo.\\
+\code{rp\_gui.m} & Interfaz gráfica en vivo con animación 3D.\\
+\code{rp\_draw.m}, \code{rp\_view.m}, \code{rp\_animate.m}, \code{rp\_plot\_results.m} & Escena 3D, puntos de vista, reproducción de ensayos y gráficas.\\
+\code{examples.m} & Recorrido guiado por secciones.\\
+\code{python\_reference\_sim.py} & Réplica independiente en Python usada para validar el modelo.\\
+\code{validation/} & Scripts de validación cruzada Simulink--Python (apéndice~\ref{cap:validacion}).\\
+\bottomrule
+\end{tabularx}
+\caption{Archivos del paquete \code{rotary\_pendulum}.}
+\label{tab:archivos}
+\end{table}
+
+\section{Requisitos y puesta en marcha}
+
+Se necesita MATLAB y Simulink R2020b o posterior (se ha probado con R2025b). La Control System Toolbox es opcional: si no está instalada, \code{rp\_lqr} resuelve la ecuación de Riccati por el método del Hamiltoniano, igual que en el péndulo lineal.
+
+\begin{lstlisting}[caption={Primeros pasos.}]
+cd src/rotary_pendulum
+rp_build_model                 % crea rotpend_sim.slx (solo la primera vez)
+rp_gui                         % interfaz gráfica en vivo
+% o desde código:
+rp = RotaryPendulum();
+rp.setInitialState([0 0 pi 0]);   % péndulo colgando
+rp.setMode('swingup');
+res = rp.run(8);
+rp_plot_results(res); rp.animate(res);
+\end{lstlisting}
+
+La figura~\ref{fig:frames} muestra la animación de ese ensayo: el controlador bombea energía al péndulo con movimientos alternos del brazo y lo captura arriba a los \SI{1.89}{s}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{data/frames.png}
+\caption{Fotogramas de la animación 3D (\code{rp\_animate}) durante un swing-up desde el reposo colgando. Las sombras sobre la base ayudan a percibir la profundidad; el triángulo verde marca la referencia del brazo.}
+\label{fig:frames}
+\end{figure}

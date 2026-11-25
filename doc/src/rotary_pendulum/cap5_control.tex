@@ -1,0 +1,246 @@
+\chapter{Diseño de controladores}
+\label{cap:control}
+
+El controlador discreto (\code{rp\_controller\_block.m}) ofrece cinco modos, seleccionables en vivo:
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}cll@{}}
+\toprule
+Modo & Nombre & Ley de control\\
+\midrule
+0 & \code{open} & $V=u_{\text{manual}}+u_{\text{ext}}$ (lazo abierto, identificación)\\
+1 & \code{lqr} & $V=-K_\uparrow[\theta-r,\ \thd,\ \alpha,\ \ald]^\top$\\
+2 & \code{swingup} & bombeo de energía y captura con el LQR del modo 1\\
+3 & \code{pid} & PID sobre $\alpha$ más PD sobre $\theta$\\
+4 & \code{down} & $V=-K_\downarrow[\theta-r,\ \thd,\ \alpha-\pi,\ \ald]^\top$ (posicionado anti-balanceo)\\
+\bottomrule
+\end{tabular}
+\caption{Modos de control.}
+\end{table}
+
+En todos ellos $\alpha$ se envuelve a $[-\pi,\pi)$ antes de usarlo, y $\theta$ no (el brazo puede dar vueltas y la referencia se mide en ángulo absoluto).
+
+\section{LQR con el péndulo arriba}
+
+\subsection{Planteamiento}
+El regulador lineal cuadrático minimiza
+\begin{equation}
+  J=\int_0^\infty\left(\tilde{\vect s}^\top Q\,\tilde{\vect s} + R\,V^2\right)\dd t,\qquad \tilde{\vect s}=[\theta-r,\ \thd,\ \alpha,\ \ald]^\top,
+\end{equation}
+cuya solución es la realimentación de estado $V=-K\tilde{\vect s}$ con $K=R^{-1}B^\top X$, siendo $X$ la solución de la ecuación algebraica de Riccati. \code{rp\_lqr} usa \code{lqr()} si existe la Control System Toolbox y, si no, la obtiene por el método del Hamiltoniano (el mismo algoritmo que en el péndulo lineal).
+
+\subsection{Diseño por defecto}
+
+\begin{ejemplo}{Ganancias por defecto}
+Con $Q=\operatorname{diag}(20;\ 0{,}5;\ 50;\ 0{,}5)$ y $R=1$:
+\[
+K_\uparrow=\begin{bmatrix}-4{,}47 & -1{,}98 & -50{,}3 & -4{,}42\end{bmatrix},\qquad
+\lambda_{\text{LC}}=\{-22{,}2,\ -10{,}8,\ -5{,}56\pm j2{,}72\}.
+\]
+Unidades: V/rad y V/(rad/s). Una inclinación de $1^\circ$ del péndulo pide \SI{0.88}{V}; un error de $10^\circ$ en el brazo, \SI{0.78}{V}.
+\end{ejemplo}
+
+Las ganancias sobre $\theta$ son negativas: para corregir un brazo adelantado ($\theta>r$) el controlador tiene que \emph{adelantarlo aún más} un instante, de forma que el péndulo se incline hacia atrás y después arrastre al conjunto. Es la firma de la fase no mínima.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=1 by 3,vertical sep=0.35cm,xticklabels at=edge bottom},
+  manual,height=3.6cm,xmin=0,xmax=3]
+\nextgroupplot[ylabel={$\alpha$ [$^\circ$]}]
+\addplot[c2] table[x=t,y=al]{data/lqr_ic.dat};
+\nextgroupplot[ylabel={$\theta$ [$^\circ$]}]
+\addplot[c1] table[x=t,y=th]{data/lqr_ic.dat};
+\nextgroupplot[ylabel={$V$ [V]},xlabel={$t$ [s]}]
+\addplot[c4] table[x=t,y=V]{data/lqr_ic.dat};
+\end{groupplot}
+\end{tikzpicture}
+\caption{LQR desde $\alpha_0=10^\circ$. El péndulo queda dentro de $\pm1^\circ$ en \SI{0.41}{s}; el brazo se desplaza hasta $24^\circ$ para recogerlo y vuelve. Pico de tensión: \SI{8.8}{V}.}
+\label{fig:lqric}
+\end{figure}
+
+\subsection{Seguimiento de una referencia del brazo}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=1 by 3,vertical sep=0.35cm,xticklabels at=edge bottom},
+  manual,height=3.5cm,xmin=0,xmax=4]
+\nextgroupplot[ylabel={$\theta$ [$^\circ$]},legend pos=south east]
+\addplot[c1] table[x=t,y=th]{data/lqr_step.dat};
+\addplot[black,dashed] table[x=t,y=r]{data/lqr_step.dat};
+\legend{$\theta$,$r$ (limitada)}
+\nextgroupplot[ylabel={$\alpha$ [$^\circ$]}]
+\addplot[c2] table[x=t,y=al]{data/lqr_step.dat};
+\nextgroupplot[ylabel={$V$ [V]},xlabel={$t$ [s]}]
+\addplot[c4] table[x=t,y=V]{data/lqr_step.dat};
+\end{groupplot}
+\end{tikzpicture}
+\caption{LQR: escalón de $45^\circ$ en la referencia del brazo, suavizado por el limitador de pendiente por defecto (\SI{2}{rad/s}). El brazo retrocede $0{,}9^\circ$ antes de avanzar (fase no mínima) y entra en la banda del 5\,\% en \SI{0.94}{s}. Sin limitador el retroceso es de $3{,}4^\circ$.}
+\label{fig:lqrstep}
+\end{figure}
+
+Con una referencia senoidal de $\pm45^\circ$, el brazo sigue bien a \SI{0.2}{Hz} (retraso de $29^\circ$), pero a \SI{0.5}{Hz} el retraso es de $73^\circ$ y a \SI{1}{Hz} la amplitud cae al 66\,\% con $139^\circ$ de retraso. Igual que en el péndulo lineal, sin acción integral ni prealimentación el LQR es un regulador, no un seguidor.
+
+\subsection{Rechazo de perturbaciones}
+
+Un golpecito de \SI{0.1}{N} durante \SI{50}{ms} en la punta del péndulo lo inclina $15^\circ$. El LQR satura a \SI{10}{V}, el brazo gira hasta $57^\circ$ para recogerlo y todo vuelve al reposo en \SI{1.9}{s}. Es un buen ensayo para ver la saturación en acción (práctica~\ref{pr:lqr}).
+
+\subsection{Elección de los pesos}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=2 by 1,horizontal sep=1.6cm},
+  manual,width=0.5\linewidth,height=5cm,xmin=0,xmax=2]
+\nextgroupplot[ylabel={$\theta$ [$^\circ$]},xlabel={$t$ [s]},legend pos=north east,title={Barrido de $Q_\theta$ ($R=1$)}]
+\addplot[c6] table[x=t,y=th]{data/qsweep_5.dat};
+\addplot[c1] table[x=t,y=th]{data/qsweep_20.dat};
+\addplot[c4] table[x=t,y=th]{data/qsweep_80.dat};
+\legend{$5$,$20$,$80$}
+\nextgroupplot[ylabel={$V$ [V]},xlabel={$t$ [s]},legend pos=north east,title={Barrido de $R$}]
+\addplot[c2] table[x=t,y=V]{data/rsweep_0.2.dat};
+\addplot[c1] table[x=t,y=V]{data/lqr_ic.dat};
+\addplot[c5] table[x=t,y=V]{data/rsweep_5.dat};
+\legend{$0{,}2$,$1$,$5$}
+\end{groupplot}
+\end{tikzpicture}
+\caption{Efecto de los pesos del LQR (ensayo desde $\alpha_0=10^\circ$). Más $Q_\theta$ devuelve antes el brazo a su sitio a costa de tensión; menos $R$ satura el amplificador.}
+\label{fig:pesos}
+\end{figure}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Diseño & $K$ & $V_{\max}$ [V] & $\max|\theta|$ [$^\circ$]\\
+\midrule
+$Q_\theta=5$ & $[-2{,}24\ \ -1{,}40\ \ -42{,}7\ \ -3{,}71]$ & 7,5 & 27\\
+$Q_\theta=20$ (defecto) & $[-4{,}47\ \ -1{,}98\ \ -50{,}3\ \ -4{,}42]$ & 8,8 & 24\\
+$Q_\theta=80$ & $[-8{,}94\ \ -3{,}06\ \ -64{,}2\ \ -5{,}72]$ & 10 (satura) & 22\\
+$R=0{,}2$ & $[-10{,}0\ \ -4{,}01\ \ -84{,}7\ \ -7{,}65]$ & 10 (satura) & --\\
+$R=5$ & $[-2{,}00\ \ -1{,}06\ \ -35{,}1\ \ -2{,}99]$ & 6,1 & --\\
+\bottomrule
+\end{tabular}
+\caption{Ganancias y esfuerzo para distintos pesos.}
+\end{table}
+
+Una observación útil: $Q_\alpha$ apenas cambia el resultado. Con $Q_\alpha=10$, $50$ o $250$, la ganancia sobre $\alpha$ solo varía entre $-49{,}5$ y $-54$, porque estabilizar el péndulo ya exige una ganancia angular grande y el LQR la impone de todos modos. Los pesos que de verdad modelan la respuesta son $Q_\theta$ y $R$.
+
+\section{PID sobre el péndulo y PD sobre el brazo}
+
+La alternativa clásica sin modelo es
+\begin{equation}
+  V = K_{p\alpha}\,\alpha + K_{i\alpha}\!\int\!\alpha\,\dd t + K_{d\alpha}\,\ald + K_{p\theta}(\theta-r) + K_{d\theta}\,\thd ,
+\end{equation}
+con $K_{p\alpha}=50$, $K_{d\alpha}=4$, $K_{p\theta}=4$, $K_{d\theta}=2$ y $K_{i\alpha}=0$ por defecto. Observa los signos: comparado con el LQR, $V=-K\tilde{\vect s}$ con $K=[-K_{p\theta},\ -K_{d\theta},\ -K_{p\alpha},\ -K_{d\alpha}]$, es decir, una realimentación de estado con todas las ganancias del mismo signo que las del LQR. La ganancia \emph{positiva} sobre el error del brazo es, de nuevo, consecuencia de la fase no mínima: con el signo «intuitivo», $K_{p\theta}=-4$, aparece un polo real inestable en $+1{,}55$.
+
+Los polos en lazo cerrado del modelo lineal son $-13{,}7\pm j14{,}0$ y $-4{,}40\pm j1{,}40$. Desde $\alpha_0=10^\circ$, el PID asienta en \SI{0.35}{s}; ante un escalón de $45^\circ$ tarda \SI{1.1}{s} en entrar en la banda del 5\,\%.
+
+\section{Swing-up por control de energía}
+\label{sec:swingup}
+
+\subsection{Energía del péndulo}
+Partiendo de la posición colgante hay que llevar el péndulo arriba. Se controla su energía~\cite{astrom2000}, definida de modo que valga cero arriba en reposo:
+\begin{equation}
+  E = \tfrac12\Ja\ald^2 + m_pgl_p\left(\cos\alpha-1\right),\qquad E_{\text{colgado}} = -2m_pgl_p = \SI{-30.4}{mJ}.
+  \label{eq:energia}
+\end{equation}
+Derivando y usando~\eqref{eq:el2} (despreciando $D_p$ y el término centrífugo, de segundo orden cerca de $\thd=0$):
+\begin{equation}
+  \dot E = \Ja\ald\aldd - m_pgl_p\sin\alpha\,\ald \approx -h\cos\alpha\,\ald\,\thdd .
+  \label{eq:Edot}
+\end{equation}
+La aceleración del brazo $a=\thdd$ actúa sobre la energía a través de $\cos\alpha\,\ald$, igual que la aceleración del carro en el péndulo lineal.
+
+\subsection{Ley de control}
+Con la función de Lyapunov $V_L=\tfrac12(E-E_r)^2$, la elección
+\begin{equation}
+  a = k_E\,(E-E_r)\,\ald\cos\alpha \;-\; k_x(\theta-r) \;-\; k_v\thd, \qquad |a|\le a_{\max},
+  \label{eq:swing}
+\end{equation}
+da $\dot V_L=-k_Eh\,(E-E_r)^2\cos^2\!\alpha\,\ald^2\le0$ (sin los términos de recentrado). Los dos últimos términos mantienen el brazo cerca de la referencia durante el bombeo. Si el péndulo está en reposo colgando, $\ald=0$ y la ley no haría nada; por eso se añade un pequeño empujón inicial.
+
+\paragraph{Energía objetivo.} Lo natural sería $E_r=0$, la energía del péndulo arriba en reposo. Pero la ley es proporcional a $E-E_r$ y se apaga justo cuando más falta hace: cerca del objetivo, el pequeño bombeo que queda se equilibra con la fricción y con el recentrado del brazo, y el péndulo se queda oscilando unos $30^\circ$ por debajo de la vertical, sin entrar en la zona de captura. Con los parámetros nominales y \SI{10}{V} la ley con $E_r=0$ funciona por poco; con \SI{8}{V}, con el triple de fricción de Coulomb o con la mitad o el doble de masa del péndulo, ya no. La solución es apuntar un poco por encima,
+\begin{equation}
+  E_r = e_r\cdot2m_pgl_p,\qquad e_r = 0{,}2 \quad(\text{\code{P.E\_ref}}),
+\end{equation}
+de modo que el péndulo llega arriba con algo de velocidad sobrante y el LQR la absorbe al capturarlo. Expresar $E_r$ como fracción de la energía colgado hace que el ajuste se adapte solo si cambian $m_p$ o $L_p$. Con $e_r=0{,}2$ el swing-up captura el péndulo con \SI{6}{V} de saturación (en \SI{2.84}{s}), con el doble de masa del péndulo (\SI{2.47}{s}, aunque el brazo llega a $93^\circ$) y con un péndulo de \SI{18}{cm} (\SI{1.71}{s}).
+
+Valores por defecto: $k_E=200$, $a_{\max}=\SI{80}{rad/s^2}$, $k_x=25$, $k_v=1$, $e_r=0{,}2$.
+
+\subsection{De la aceleración a la tensión}
+La ley anterior pide una aceleración del brazo; el motor necesita una tensión. Se invierte la dinámica~\eqref{eq:nl}: dado $\thdd=a$, la segunda ecuación da $\aldd$, la primera el par $\tau$ necesario y~\eqref{eq:motor} la tensión
+\begin{equation}
+  V = \frac{R_m}{k_t}\tau + k_m\thd .
+\end{equation}
+Es una linealización por realimentación parcial: con ella el brazo se comporta como un doble integrador al que se le ordena una aceleración.
+
+\subsection{Captura}
+Cuando $|\alpha|<\alpha_{\text{catch}}=0{,}40$~rad ($23^\circ$) se conmuta al LQR del modo~1. Si el péndulo se escapa ($|\alpha|>0{,}9$~rad) se vuelve al bombeo.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=1 by 4,vertical sep=0.3cm,xticklabels at=edge bottom},
+  manual,height=3.2cm,xmin=0,xmax=5]
+\nextgroupplot[ylabel={$\alpha$ [$^\circ$]},ytick={-180,-90,0,90,180}]
+\addplot[c2,only marks,mark size=0.35pt] table[x=t,y=al]{data/swingup.dat};
+\draw[gray,dashed] (axis cs:1.888,-200) -- (axis cs:1.888,200);
+\nextgroupplot[ylabel={$\theta$ [$^\circ$]}]
+\addplot[c1] table[x=t,y=th]{data/swingup.dat};
+\nextgroupplot[ylabel={$E$ [mJ]}]
+\addplot[c5] table[x=t,y=E]{data/swingup.dat};
+\nextgroupplot[ylabel={$V$ [V]},xlabel={$t$ [s]}]
+\addplot[c4] table[x=t,y=V]{data/swingup.dat};
+\end{groupplot}
+\end{tikzpicture}
+\caption{Swing-up desde el reposo colgando. La energía sube de \SI{-30.4}{mJ} hacia el objetivo $E_r=\SI{6.1}{mJ}$ en unos pocos balanceos; a los \SI{1.89}{s} (línea discontinua) se captura con el LQR. El brazo no pasa de $\pm43^\circ$. Tras la captura $E$ deja de calcularse y se muestra como cero.}
+\label{fig:swingup}
+\end{figure}
+
+\section{Modo \code{down}: posicionado con anti-balanceo}
+
+Con el péndulo colgando, el problema es el de una grúa giratoria: llevar el brazo a una posición sin que el péndulo quede oscilando. Se diseña un LQR sobre el modelo colgante con $\varphi=\operatorname{wrap}(\alpha-\pi)$, $Q=\operatorname{diag}(20;\ 0{,}5;\ 10;\ 0{,}05)$ y $R=1$:
+\[
+K_\downarrow=\begin{bmatrix}4{,}47 & 1{,}11 & 1{,}89 & -0{,}05\end{bmatrix},\qquad
+\lambda=\{-7{,}51\pm j3{,}21,\ -2{,}60\pm j11{,}4\}.
+\]
+El LQR multiplica por 14 el amortiguamiento del modo pendular (de $\zeta=0{,}016$ a $0{,}22$).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=1 by 2,vertical sep=0.35cm,xticklabels at=edge bottom},
+  manual,height=4cm,xmin=0,xmax=6]
+\nextgroupplot[ylabel={$\theta$ [$^\circ$]},legend pos=south east]
+\addplot[c1] table[x=t,y=th]{data/down_step.dat};
+\addplot[c2] table[x=t,y=th]{data/down_nosway.dat};
+\addplot[black,dashed] table[x=t,y=r]{data/down_step.dat};
+\legend{LQR anti-balanceo,solo PD brazo,$r$}
+\nextgroupplot[ylabel={$\alpha-\pi$ [$^\circ$]},xlabel={$t$ [s]}]
+\addplot[c1] table[x=t,y expr={mod(\thisrow{al}+360,360)-180}]{data/down_step.dat};
+\addplot[c2] table[x=t,y expr={mod(\thisrow{al}+360,360)-180}]{data/down_nosway.dat};
+\end{groupplot}
+\end{tikzpicture}
+\caption{Modo \code{down}: escalón de $90^\circ$ (limitado a \SI{2}{rad/s}) con y sin realimentación del péndulo. Con anti-balanceo la oscilación residual tras $t=\SI{4}{s}$ es de $0{,}26^\circ$; sin él, $0{,}87^\circ$.}
+\label{fig:down}
+\end{figure}
+
+La diferencia es mucho menor que en la grúa del péndulo lineal ($0{,}34^\circ$ frente a $16{,}5^\circ$ allí). El motivo es físico: el péndulo del Furuta es corto y rápido (\SI{2}{Hz}) comparado con el movimiento del brazo limitado en pendiente, y la propia fuerza contraelectromotriz amortigua el brazo. Si se quita el limitador (\code{setParamRaw('ref\_rate', 1e6)}), el escalón brusco balancea el péndulo hasta $21$--$26^\circ$ y la oscilación residual pasa a ser de $0{,}6^\circ$ con anti-balanceo frente a $2{,}3^\circ$ sin él (práctica~\ref{pr:down}).
+
+\section{Robustez}
+\label{sec:robustez}
+
+¿Qué ocurre si la planta real no coincide con el modelo del diseño? Para comprobarlo hay que cambiar la planta \emph{sin} recalcular las ganancias:
+\begin{lstlisting}
+Knom = rp.P.K_up;
+rp.setParam('mp', 0.048);      % planta con el doble de masa (recalcula inercias...)
+rp.setParamRaw('K_up', Knom);  % ...pero se impone de nuevo la ganancia nominal
+\end{lstlisting}
+Con la ganancia nominal, el LQR estabiliza el péndulo desde $10^\circ$ con masas de 12, 48 y \SI{72}{g} (la mitad, el doble y el triple de la nominal). Con el doble o el triple de masa, el tiempo de asentamiento pasa de \SI{0.41}{s} a \SI{0.76}{s}. El margen frente a errores de modelado es amplio.
+
+\section{Seguridad}
+
+Si $|\theta|$ supera $\theta_{\text{safe}}=360^\circ$ en cualquier modo salvo el de lazo abierto, el controlador anula la tensión y activa la señal \code{tripped}, con enclavamiento. Se rearma deshabilitando y volviendo a habilitar el control, o cambiando de modo. En una maqueta real, este límite protege los cables del encoder del péndulo, que giran con el brazo.

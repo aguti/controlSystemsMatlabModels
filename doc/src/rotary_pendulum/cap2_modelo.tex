@@ -1,0 +1,126 @@
+\chapter{Modelado dinámico}
+\label{cap:modelo}
+
+\section{Cinemática}
+
+Tomamos como coordenadas generalizadas $\vect q=[\theta,\ \alpha]^\top$. Sean $\hat{\vect r}=(\cos\theta,\sin\theta,0)$ la dirección del brazo y $\hat{\vect t}=(-\sin\theta,\cos\theta,0)$ la dirección tangente (la de $\theta$ creciente). El péndulo es una varilla uniforme de masa $m_p$ cuyo centro de masas (CdM) está a $l_p=L_p/2$ del pivote, y que oscila en el plano generado por $\hat{\vect t}$ y $\hat{\vect z}$:
+\begin{equation}
+  \vect p_G = L_r\,\hat{\vect r} + l_p\sin\alpha\,\hat{\vect t} + l_p\cos\alpha\,\hat{\vect z}.
+\end{equation}
+Derivando, con $\dot{\hat{\vect r}}=\thd\,\hat{\vect t}$ y $\dot{\hat{\vect t}}=-\thd\,\hat{\vect r}$:
+\begin{equation}
+  \dot{\vect p}_G = \left(L_r\thd + l_p\cos\alpha\,\ald\right)\hat{\vect t} - l_p\sin\alpha\,\thd\,\hat{\vect r} - l_p\sin\alpha\,\ald\,\hat{\vect z},
+\end{equation}
+\begin{equation}
+  |\dot{\vect p}_G|^2 = L_r^2\thd^2 + 2L_rl_p\cos\alpha\,\thd\ald + l_p^2\ald^2 + l_p^2\sin^2\!\alpha\,\thd^2 .
+\end{equation}
+El último término es nuevo respecto al carro-péndulo: al girar el brazo, el CdM del péndulo inclinado describe una circunferencia de radio mayor que $L_r$.
+
+\section{Energías}
+
+La velocidad angular del péndulo es $\vect\omega=\thd\,\hat{\vect z}+\ald\,\hat{\vect r}$. Para una varilla delgada, la inercia respecto a su propio eje es despreciable y respecto a cualquier eje perpendicular que pase por el CdM vale $J_p=m_pL_p^2/12$. Proyectando $\vect\omega$ sobre el plano perpendicular a la varilla se obtiene $\omega_\perp^2=\ald^2+\sin^2\!\alpha\,\thd^2$. La energía cinética total, con $J_r$ la inercia del brazo (y del rotor del motor) respecto al eje del motor, es
+\begin{equation}
+  T = \tfrac12 J_r\thd^2 + \tfrac12 m_p|\dot{\vect p}_G|^2 + \tfrac12 J_p\left(\ald^2+\sin^2\!\alpha\,\thd^2\right).
+\end{equation}
+Agrupando términos con las inercias equivalentes
+\begin{equation}
+  J_0 = J_r + m_pL_r^2, \qquad \Ja = J_p + m_pl_p^2,
+  \label{eq:inercias}
+\end{equation}
+($J_0$ es la inercia del brazo con la masa del péndulo concentrada en su extremo y $\Ja$ la del péndulo respecto a su pivote) queda
+\begin{equation}
+  \boxed{T = \tfrac12\left(J_0+\Ja\sin^2\!\alpha\right)\thd^2 + m_pL_rl_p\cos\alpha\,\thd\ald + \tfrac12\Ja\ald^2}
+  \label{eq:T}
+\end{equation}
+La energía potencial, con origen en la altura del pivote, es $U=m_pgl_p\cos\alpha$.
+
+\section{Ecuaciones de Euler--Lagrange}
+
+Las fuerzas generalizadas no conservativas son el par del motor $\tau$, las fricciones y una perturbación $F_d$ aplicada en la punta del péndulo en dirección tangente $\hat{\vect t}$. La punta está en $L_r\hat{\vect r}+L_p\sin\alpha\,\hat{\vect t}+L_p\cos\alpha\,\hat{\vect z}$; su desplazamiento virtual proyectado sobre $\hat{\vect t}$ es $L_r\,\delta\theta + L_p\cos\alpha\,\delta\alpha$, así que
+\begin{equation}
+  Q_\theta = \tau - D_r\thd - T_c\operatorname{sgn}\thd + F_dL_r,\qquad
+  Q_\alpha = -D_p\ald + F_dL_p\cos\alpha .
+\end{equation}
+Escribiendo $h=m_pL_rl_p$ para abreviar, el lagrangiano $\mathcal L=T-U$ da:
+
+\paragraph{Coordenada $\theta$.}
+\begin{equation}
+  \left(J_0+\Ja\sin^2\!\alpha\right)\thdd + h\cos\alpha\,\aldd + 2\Ja\sin\alpha\cos\alpha\,\thd\ald - h\sin\alpha\,\ald^2 = Q_\theta .
+  \label{eq:el1}
+\end{equation}
+
+\paragraph{Coordenada $\alpha$.}
+\begin{equation}
+  h\cos\alpha\,\thdd + \Ja\aldd - \Ja\sin\alpha\cos\alpha\,\thd^2 - m_pgl_p\sin\alpha = Q_\alpha .
+  \label{eq:el2}
+\end{equation}
+
+Los términos $2\Ja\sin\alpha\cos\alpha\,\thd\ald$ (Coriolis) y $\Ja\sin\alpha\cos\alpha\,\thd^2$ (centrífugo) no tienen equivalente en el carro-péndulo. El segundo explica un efecto curioso: si el brazo gira deprisa, la fuerza centrífuga tiende a separar el péndulo de la vertical.
+
+\section{Forma matricial}
+
+\begin{equation}
+  \underbrace{\begin{bmatrix} J_0+\Ja\sin^2\!\alpha & h\cos\alpha\\ h\cos\alpha & \Ja\end{bmatrix}}_{\vect M(\alpha)}
+  \begin{bmatrix}\thdd\\ \aldd\end{bmatrix}
+  =
+  \begin{bmatrix}
+    \tau - D_r\thd - T_c\operatorname{sgn}\thd - 2\Ja\sin\alpha\cos\alpha\,\thd\ald + h\sin\alpha\,\ald^2 + F_dL_r\\
+    \Ja\sin\alpha\cos\alpha\,\thd^2 + m_pgl_p\sin\alpha - D_p\ald + F_dL_p\cos\alpha
+  \end{bmatrix}.
+  \label{eq:nl}
+\end{equation}
+La matriz de masas es simétrica y definida positiva: $\det\vect M = \Ja(J_0+\Ja\sin^2\!\alpha) - h^2\cos^2\!\alpha>0$ para los parámetros del paquete. Esta es exactamente la ecuación que implementa \code{rp\_plant\_block.m}, que resuelve el sistema $2\times2$ en cada paso del integrador.
+
+\begin{ejemplo}{Matriz de masas con los parámetros por defecto}
+Con los valores de la tabla~\ref{tab:param}: $J_r=\SI{2.348e-4}{kg.m^2}$, $J_0=\SI{4.082e-4}{kg.m^2}$, $\Ja=\SI{1.331e-4}{kg.m^2}$ y $h=\SI{1.316e-4}{kg.m^2}$. En la vertical ($\alpha=0$):
+\[
+\vect M(0)=10^{-4}\begin{bmatrix}4{,}082 & 1{,}316\\ 1{,}316 & 1{,}331\end{bmatrix},\qquad \det\vect M(0)=\num{3.70e-8}.
+\]
+El acoplamiento $h$ es comparable a los términos diagonales: el péndulo es ligero, pero el brazo es corto y el acoplamiento es fuerte.
+\end{ejemplo}
+
+\section{Motor y amplificador}
+
+El motor de corriente continua se modela despreciando la inductancia del inducido (su constante eléctrica es mucho menor que las mecánicas):
+\begin{equation}
+  \tau = \frac{k_t}{R_m}\left(V - k_m\thd\right),
+  \label{eq:motor}
+\end{equation}
+con $R_m$ la resistencia, $k_t$ la constante de par y $k_m$ la constante de fuerza contraelectromotriz. El término $-k_tk_m\thd/R_m$ es un amortiguamiento viscoso adicional, $b_{\text{emf}}=k_tk_m/R_m=\SI{2.1e-4}{N.m.s/rad}$, que duplica con creces la fricción viscosa propia del brazo ($D_r=\SI{1e-4}{N.m.s/rad}$). El amplificador satura la tensión en $\pm V_{\max}=\pm\SI{10}{V}$, de modo que el par máximo a brazo parado es $k_tV_{\max}/R_m=\SI{0.05}{N.m}$ y la aceleración máxima del brazo ronda los \SI{120}{rad/s^2}.
+
+\section{Fricción}
+
+\begin{itemize}
+  \item \textbf{Brazo}: viscosa $D_r\thd$ más Coulomb $T_c\tanh(\thd/\omega_\epsilon)$, con $T_c=\SI{0.5}{mN.m}$. La tangente hiperbólica suaviza el signo para que el integrador de paso fijo no oscile alrededor de $\thd=0$.
+  \item \textbf{Pivote del péndulo}: solo viscosa, $D_p\ald$, muy pequeña. La oscilación colgante es casi no amortiguada.
+\end{itemize}
+La fricción de Coulomb del brazo es la responsable de los pequeños ciclos límite que se observan al posicionar el brazo, igual que la del carro en el péndulo lineal.
+
+\section{Parámetros por defecto}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}llll@{}}
+\toprule
+Parámetro & Símbolo & Valor & Campo en \code{P}\\
+\midrule
+Masa del brazo & $m_r$ & \SI{0.095}{kg} & \code{mr}\\
+Longitud del brazo & $L_r$ & \SI{0.085}{m} & \code{Lr}\\
+Inercia del buje y rotor & $J_h$ & \SI{6e-6}{kg.m^2} & \code{Jh}\\
+Masa del péndulo & $m_p$ & \SI{0.024}{kg} & \code{mp}\\
+Longitud del péndulo & $L_p$ & \SI{0.129}{m} & \code{Lp}\\
+Fricción viscosa del brazo & $D_r$ & \SI{1e-4}{N.m.s/rad} & \code{Dr}\\
+Fricción de Coulomb del brazo & $T_c$ & \SI{5e-4}{N.m} & \code{Tc}\\
+Fricción del pivote & $D_p$ & \SI{5e-6}{N.m.s/rad} & \code{Dp}\\
+Resistencia del motor & $R_m$ & \SI{8.4}{\ohm} & \code{Rm}\\
+Constantes del motor & $k_t$, $k_m$ & \SI{0.042}{N.m/A}, \SI{0.042}{V.s/rad} & \code{kt}, \code{km}\\
+Saturación del amplificador & $V_{\max}$ & \SI{10}{V} & \code{Vmax}\\
+\bottomrule
+\end{tabular}
+\caption{Parámetros físicos por defecto (\code{rp\_params.m}). Son valores típicos de una maqueta de laboratorio de sobremesa. La tabla completa está en el apéndice~\ref{cap:parametros}.}
+\label{tab:param}
+\end{table}
+
+\begin{aviso}
+$J_r$, $J_p$, $J_0$, $\Ja$ y $l_p$ son \emph{derivados}: los recalcula \code{rp\_design} a partir de las masas y longitudes. Si se cambia \code{mp} o \code{Lp} con \code{setParam}, todo se actualiza. Con \code{setParamRaw} no se recalcula nada (sección~\ref{sec:robustez}).
+\end{aviso}

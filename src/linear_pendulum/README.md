@@ -1,6 +1,6 @@
 # Linear pendulum (cart-pole): Simulink simulation
 
-Experiment 1 of the control systems series (the rotary pendulum, ball and plate, etc. will follow).
+Experiment 1 of the control systems series (followed by the [rotary pendulum](../rotary_pendulum/README.md); see the [list of experiments](../../README.md)).
 
 A cart runs on a ±0.8 m rail, driven by a linear force actuator. An articulated rod hangs from the cart. **Only positions are measured**, with a linear encoder for `x` and an angular one for `θ`. The controller estimates velocities with a filtered derivative.
 
